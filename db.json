@@ -1,29 +1,35 @@
 {
+  "lessons": [
+    {
+      "id": 1715283600000,
+      "subject": "Matematika",
+      "topic": "Pitagorina teorema",
+      "teacher": "Stefan Mihajlović",
+      "period": "1"
+    }
+  ],
   "students": [
     {
-      "id": 1778341043850,
-      "name": "test",
+      "id": 1715283650000,
+      "name": "Marko Marković",
       "grades": [],
       "activity": [],
       "behavior": [],
       "absences": [
         {
-          "subject": "Техника и технологија",
-          "topic": "Усмено одговарање",
-          "period": "1",
-          "status": "оправдан",
-          "note": "болест"
+          "lessonId": 1715283600000,
+          "subject": "Matematika",
+          "topic": "Pitagorina teorema",
+          "status": "opravdan",
+          "note": "",
+          "date": "9.5.2026."
         }
       ]
     }
   ],
-  "lessons": [
-    {
-      "id": 1778341489258,
-      "subject": "Техника и технологија",
-      "topic": "Усмено одговарање",
-      "teacher": "Сања Зелић",
-      "period": "1"
-    }
-  ]
+  "config": {
+    "adminUser": "stefanmihajlovic",
+    "adminPass": "stefanmihajloviccc",
+    "email": "esdnevnik@inbox.ru"
+  }
 }
