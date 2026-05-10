@@ -1,3 +1,4 @@
+
 const express = require("express");
 const fs = require("fs");
 const app = express();
@@ -33,7 +34,6 @@ function auth(req, res, next) {
 }
 app.use(auth);
 
-// ПОПРАВЉЕНА ФУНКЦИЈА ЗА ПРОСЕК
 const getAverage = (grades) => {
     if (!grades || grades.length === 0) return 0;
     const sum = grades.reduce((a, b) => a + parseFloat(b.value), 0);
@@ -59,6 +59,10 @@ const layout = (title, content) => `
         .btn { padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer; font-weight: 700; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-size: 13px; }
         .btn-p { background: #4f46e5; color: white; } .btn-red { background: #fee2e2; color: #ef4444; } .btn-random { background: #f59e0b; color: white; } .btn-edit { background: #e2e8f0; color: #475569; }
         input, select, textarea { padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; width: 100%; margin-bottom: 12px; background: #f8fafc; font-family: inherit; }
+        
+        /* MODAL STIL */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-content { background: white; padding: 30px; border-radius: 20px; width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
     </style></head>
     <body>
         <div class="sidebar">
@@ -69,61 +73,41 @@ const layout = (title, content) => `
             <a href="/logout" class="logout"><i class="fas fa-sign-out-alt"></i> Одјави се</a>
         </div>
         <div class="main-wrapper"><h1>${title}</h1>${content}</div>
+
+        <div id="absModal" class="modal">
+            <div class="modal-content">
+                <h3 style="margin-top:0">Ажурирај изостанак</h3>
+                <form id="absForm" method="POST">
+                    <label>Статус:</label>
+                    <select name="status" id="absStatus">
+                        <option value="Нерегулисан">Нерегулисан</option>
+                        <option value="Оправдан">Оправдан</option>
+                        <option value="Неоправдан">Неоправдан</option>
+                    </select>
+                    <label>Белешка (опционо):</label>
+                    <textarea name="note" id="absNote" rows="3" placeholder="Унесите разлог..."></textarea>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <button type="submit" class="btn btn-p" style="flex:1; justify-content:center">САЧУВАЈ</button>
+                        <button type="button" onclick="closeAbsModal()" class="btn btn-edit">ОДУСТАНИ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script>
+            function openAbsModal(studentId, idx, status, note) {
+                document.getElementById('absForm').action = "/student/" + studentId + "/edit-abs/" + idx;
+                document.getElementById('absStatus').value = status;
+                document.getElementById('absNote').value = note || '';
+                document.getElementById('absModal').style.display = 'flex';
+            }
+            function closeAbsModal() {
+                document.getElementById('absModal').style.display = 'none';
+            }
+        </script>
     </body></html>`;
 
-/* --- DASHBOARD СА ПОПРАВЉЕНОМ СТАТИСТИКОМ --- */
-app.get("/dashboard", (req, res) => {
-    const db = load();
-    const students = db.students;
-    
-    let statsHtml = "";
-    if (students.length > 0) {
-        // Фитрирамо само оне који заиста имају оцене за просек
-        const studentsWithGrades = students.filter(s => s.grades.length > 0);
-        let topStudentText = "Нема оцена";
-        let topAvg = "0.00";
-
-        if (studentsWithGrades.length > 0) {
-            const sortedByAvg = [...studentsWithGrades].sort((a,b) => getAverage(b.grades) - getAverage(a.grades));
-            topStudentText = sortedByAvg[0].name;
-            topAvg = getAverage(sortedByAvg[0].grades);
-        }
-
-        const maxAbs = Math.max(...students.map(s => s.absences.length));
-        const hasAbs = maxAbs > 0;
-        const studentsWithMaxAbs = students.filter(s => s.absences.length === maxAbs);
-        
-        let absName = hasAbs ? (studentsWithMaxAbs.length === students.length ? "Сви исто" : studentsWithMaxAbs[0].name) : "Сви редовни";
-
-        statsHtml = `
-            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; margin-bottom:40px;">
-                <div class="card" style="border:none; flex-direction:column; align-items:start;">
-                    <small>Најбољи просек</small>
-                    <h3 style="margin:5px 0;">${topStudentText}</h3>
-                    <span style="background:#dcfce7; color:#166534; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:800;">${topAvg}</span>
-                </div>
-                <div class="card" style="border:none; flex-direction:column; align-items:start;">
-                    <small>Највише изостанака</small>
-                    <h3 style="margin:5px 0;">${absName}</h3>
-                    <span style="background:#fee2e2; color:#991b1b; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:800;">${maxAbs}</span>
-                </div>
-                <div class="card" style="border:none; flex-direction:column; align-items:start;">
-                    <small>Укупно ученика</small>
-                    <h2 style="margin:5px 0;">${students.length}</h2>
-                </div>
-            </div>`;
-    }
-
-    const lessons = db.lessons.reverse().map(l => `
-        <div class="card card-blue">
-            <div><small>${l.date}</small><h3>${l.subject} (${l.period}. час)</h3><p>${l.topic}</p></div>
-            <form method="POST" action="/lesson/delete/${l.id}"><button class="btn btn-red"><i class="fas fa-trash"></i></button></form>
-        </div>`).join("");
-
-    res.send(layout("Командна табла", statsHtml + "<h3>Последњи часови</h3>" + (lessons || "<p>Нема часова.</p>")));
-});
-
-/* --- СТУДЕНТ ПРОФИЛ СА ИСПРАВЉАЊЕМ И БРИСАЊЕМ --- */
+/* --- PROFIL UČENIKA --- */
 app.get("/student/:id", (req, res) => {
     const db = load();
     const s = db.students.find(x => x.id == req.params.id);
@@ -133,7 +117,11 @@ app.get("/student/:id", (req, res) => {
         ...s.grades.map((i, idx) => ({...i, type: 'grades', idx, style: 'card-blue', label: 'Оцена'})),
         ...s.activity.map((i, idx) => ({...i, type: 'activity', idx, style: 'card-green', label: 'Активност'})),
         ...s.behavior.map((i, idx) => ({...i, type: 'behavior', idx, style: 'card-orange', label: 'Владање на часу'})),
-        ...s.absences.map((i, idx) => ({...i, type: 'absences', idx, style: i.status === 'Оправдан' ? 'card-green' : i.status === 'Неоправдан' ? 'card-red' : 'card-orange', label: i.status + ' изостанак', isAbs: true}))
+        ...s.absences.map((i, idx) => ({
+            ...i, type: 'absences', idx, 
+            style: i.status === 'Оправдан' ? 'card-green' : i.status === 'Неоправдан' ? 'card-red' : 'card-orange', 
+            label: i.status + ' изостанак', isAbs: true
+        }))
     ].sort((a,b) => new Date(b.date) - new Date(a.date));
 
     let html = `
@@ -159,13 +147,16 @@ app.get("/student/:id", (req, res) => {
         <div class="card ${i.style}">
             <div style="flex:1">
                 <small style="color:#94a3b8">${i.label} | ${i.date}</small>
-                <h3 style="margin:5px 0">${i.subject || 'Напомена'}</h3>
-                <p style="margin:0">${i.note || ''}</p>
+                <h3 style="margin:5px 0">${i.subject || 'Изостанак'}</h3>
+                <p style="margin:0; font-size:14px; opacity:0.8;">${i.note || ''}</p>
             </div>
-            <div style="display:flex; align-items:center; gap:20px;">
+            <div style="display:flex; align-items:center; gap:15px;">
                 <div style="font-size:24px; font-weight:800;">${i.isAbs ? '' : i.value}</div>
                 <div style="display:flex; gap:5px;">
-                    <button onclick="editItem('${i.type}', ${i.idx}, '${i.subject}', '${i.value}', '${i.note}')" class="btn btn-edit" style="padding:8px;"><i class="fas fa-edit"></i></button>
+                    ${i.isAbs ? 
+                        `<button onclick="openAbsModal('${s.id}', ${i.idx}, '${i.status}', '${i.note || ''}')" class="btn btn-edit" style="padding:8px;"><i class="fas fa-edit"></i></button>` :
+                        `<button onclick="editItem('${i.type}', ${i.idx}, '${i.subject}', '${i.value}', '${i.note}')" class="btn btn-edit" style="padding:8px;"><i class="fas fa-edit"></i></button>`
+                    }
                     <form method="POST" action="/student/${s.id}/delete-item/${i.type}/${i.idx}" style="margin:0">
                         <button class="btn btn-red" style="padding:8px;"><i class="fas fa-trash"></i></button>
                     </form>
@@ -199,21 +190,36 @@ app.get("/student/:id", (req, res) => {
     res.send(layout(s.name, html));
 });
 
-/* --- API ЛОГИКА --- */
-app.post("/student/:id/edit-item", (req, res) => {
-    let db = load(); const s = db.students.find(x => x.id == req.params.id);
-    const { type, edit_idx, subject, value, note } = req.body;
-    if(s[type][edit_idx]) {
-        s[type][edit_idx] = { ...s[type][edit_idx], subject, value, note };
+/* --- API ZA IZMENU IZOSTANKA --- */
+app.post("/student/:id/edit-abs/:idx", (req, res) => {
+    let db = load(); 
+    const s = db.students.find(x => x.id == req.params.id);
+    if(s.absences[req.params.idx]) {
+        s.absences[req.params.idx].status = req.body.status;
+        s.absences[req.params.idx].note = req.body.note; // Čuvanje beleške
     }
-    save(db); res.redirect("/student/" + req.params.id);
+    save(db); 
+    res.redirect("/student/" + req.params.id);
 });
 
-// Све остале руте (students, add, delete, lesson) остају као пре...
+// OSTALE RUTE (Dashboard, Students, Add, etc.)
+app.get("/dashboard", (req, res) => {
+    const db = load();
+    const students = db.students;
+    const lessons = db.lessons.reverse().map(l => `
+        <div class="card card-blue">
+            <div><small>${l.date}</small><h3>${l.subject} (${l.period}. час)</h3><p>${l.topic}</p></div>
+            <form method="POST" action="/lesson/delete/${l.id}"><button class="btn btn-red"><i class="fas fa-trash"></i></button></form>
+        </div>`).join("");
+    res.send(layout("Командна табла", "<h3>Последњи часови</h3>" + (lessons || "<p>Нема часова.</p>")));
+});
+
 app.get("/students", (req, res) => {
     const db = load();
     const list = db.students.map(s => `<div class="card card-blue student-item" data-name="${s.name.toLowerCase()}" data-id="${s.id}"><div><h3>${s.name}</h3><small>Просек: <b>${getAverage(s.grades)}</b></small></div><a href="/student/${s.id}" class="btn btn-p">ПРОФИЛ</a></div>`).join("");
-    res.send(layout("Ученици", `<div style="display:flex; gap:10px; margin-bottom:20px;"><input id="search" placeholder="Претражи..." style="margin:0; flex:1;"><button onclick="pickRandom()" class="btn btn-random">СЛУЧАЈАН ОДАБИР</button></div>${list}
+    res.send(layout("Ученици", `<div style="display:flex; gap:10px; margin-bottom:20px;"><input id="search" placeholder="Претражи..." style="margin:0; flex:1;"><button onclick="pickRandom()" class="btn btn-random">СЛУЧАЈАН ОДАБИР</button></div>
+        <div class="card" style="border:none;"><form method="POST" action="/students/add" style="display:flex; gap:10px; width:100%"><input name="name" placeholder="Нови ученик" style="margin:0"><button class="btn btn-p">ДОДАЈ</button></form></div>
+        ${list}
     <script>
         document.getElementById('search').addEventListener('input', e => {
             let v = e.target.value.toLowerCase();
@@ -232,6 +238,13 @@ app.post("/student/:id/add", (req, res) => {
     save(db); res.redirect("/student/" + req.params.id);
 });
 
+app.post("/student/:id/edit-item", (req, res) => {
+    let db = load(); const s = db.students.find(x => x.id == req.params.id);
+    const { type, edit_idx, subject, value, note } = req.body;
+    if(s[type][edit_idx]) s[type][edit_idx] = { ...s[type][edit_idx], subject, value, note };
+    save(db); res.redirect("/student/" + req.params.id);
+});
+
 app.post("/student/:id/delete-item/:type/:idx", (req, res) => {
     let db = load(); const s = db.students.find(x => x.id == req.params.id);
     s[req.params.type].splice(req.params.idx, 1);
@@ -244,7 +257,7 @@ app.post("/lesson/save", (req, res) => {
     db.lessons.push(lesson);
     if(req.body.absent_ids) {
         const ids = Array.isArray(req.body.absent_ids) ? req.body.absent_ids : [req.body.absent_ids];
-        db.students.forEach(s => { if(ids.includes(s.id.toString())) s.absences.push({ lessonId: lid, subject: lesson.subject, topic: lesson.topic, date: lesson.date, status: "Нерегулисан" }); });
+        db.students.forEach(s => { if(ids.includes(s.id.toString())) s.absences.push({ lessonId: lid, subject: lesson.subject, topic: lesson.topic, date: lesson.date, status: "Нерегулисан", note: "" }); });
     }
     save(db); res.redirect("/dashboard");
 });
@@ -260,6 +273,12 @@ app.post("/lesson/delete/:id", (req, res) => {
     save(db); res.redirect("/dashboard");
 });
 
+app.get("/lesson/new", (req, res) => {
+    const db = load();
+    const list = db.students.map(s => `<label style="display:block; padding:10px; border-bottom:1px solid #eee"><input type="checkbox" name="absent_ids" value="${s.id}"> ${s.name}</label>`).join("");
+    res.send(layout("Нови час", `<form method="POST" action="/lesson/save" class="card" style="flex-direction:column; border-left:none;"><input name="subject" placeholder="Предмет" required><input name="topic" placeholder="Јединица" required><input name="period" type="number" placeholder="Број часа" required><h4>Фале:</h4><div style="width:100%">${list}</div><button class="btn btn-p" style="width:100%; margin-top:20px; justify-content:center">УПИШИ</button></form>`));
+});
+
 app.get("/login", (req, res) => {
     res.send(`<html><body style="margin:0; display:flex; align-items:center; justify-content:center; height:100vh; background:url('/pozadina dnevnik.jpg') center/cover; font-family:sans-serif;">
         <div style="background:rgba(255,255,255,0.95); padding:50px; border-radius:30px; width:350px; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,0.3);">
@@ -271,12 +290,6 @@ app.post("/login", (req, res) => {
     const db = load();
     if (req.body.user === db.config.adminUser && req.body.pass === db.config.adminPass) { sessions.add("admin"); return res.redirect("/dashboard"); }
     res.send("<script>alert('Грешка!'); window.location='/login';</script>");
-});
-
-app.get("/lesson/new", (req, res) => {
-    const db = load();
-    const list = db.students.map(s => `<label style="display:block; padding:10px; border-bottom:1px solid #eee"><input type="checkbox" name="absent_ids" value="${s.id}"> ${s.name}</label>`).join("");
-    res.send(layout("Нови час", `<form method="POST" action="/lesson/save" class="card" style="flex-direction:column; border-left:none;"><input name="subject" placeholder="Предмет" required><input name="topic" placeholder="Јединица" required><input name="period" type="number" placeholder="Број часа" required><h4>Фале:</h4><div style="width:100%">${list}</div><button class="btn btn-p" style="width:100%; margin-top:20px; justify-content:center">УПИШИ</button></form>`));
 });
 
 app.get("/logout", (req, res) => { sessions.delete("admin"); res.redirect("/login"); });
