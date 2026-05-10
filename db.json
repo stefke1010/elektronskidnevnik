@@ -2,17 +2,162 @@
   "lessons": [],
   "students": [
     {
-      "id": 1715283650000,
-      "name": "Marko Marković",
+      "id": 1778360290297,
+      "name": "Ема Адамовић",
       "grades": [],
       "activity": [],
-      "behavior": [
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778405955471,
+      "name": "Ахмет Бериша",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778405966247,
+      "name": "Борис Бранковић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406012081,
+      "name": "Михајло Вујановић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406022556,
+      "name": "Радоица Гајић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406044923,
+      "name": "Максим Зубач",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406055131,
+      "name": "Виктор Илић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406064365,
+      "name": "Вељко Максимовић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406072373,
+      "name": "Нина Максимовић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406081904,
+      "name": "Богдан Мијатовић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406092674,
+      "name": "Весна Митровић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406104797,
+      "name": "Стефан Михајловић",
+      "grades": [
         {
-          "value": "Napomena",
-          "note": "Učenik ometa čas.",
-          "date": "5/9/2026"
+          "subject": "Биологија",
+          "value": "4",
+          "note": "усмено одговарање - врло добар",
+          "date": "10. 5. 2026."
         }
       ],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406112423,
+      "name": "Филип Обрадовић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406119228,
+      "name": "Вук Петковић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406125470,
+      "name": "Зорана Петровић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406134090,
+      "name": "Теодора Петровић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406144435,
+      "name": "Урош Радивојевић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406150938,
+      "name": "Николина Томић",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
+      "absences": []
+    },
+    {
+      "id": 1778406161344,
+      "name": "Слађана Цвијан",
+      "grades": [],
+      "activity": [],
+      "behavior": [],
       "absences": []
     }
   ],
