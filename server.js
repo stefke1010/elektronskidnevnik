@@ -1,1527 +1,276 @@
+/**
+ * **************************************************************************
+ * E-DNEVNIK ELITE PRO v9.0 - STATUS COLORS EDITION
+ * Autor: Stefan Mihajlović
+ * **************************************************************************
+ */
+
 const express = require("express");
 const { Pool } = require("pg");
-const session = require("express-session");
-
 const app = express();
 
-/* ======================================================
-   CONFIG
-====================================================== */
-
 app.use(express.static(__dirname));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.json());
 
-app.use(session({
-    secret: "ednevnik-enterprise",
-    resave: false,
-    saveUninitialized: true
-}));
-
-/* ======================================================
-   DATABASE
-====================================================== */
+let sessions = new Set();
 
 const pool = new Pool({
-    connectionString:
-    "postgresql://postgres.xpgcmjqzbqplnmdkljpt:DDpGfUtsUvJEjdsn@aws-1-eu-central-1.pooler.supabase.com:6543/postgres",
-    ssl: { rejectUnauthorized: false }
+  connectionString: "postgresql://postgres.xpgcmjqzbqplnmdkljpt:DDpGfUtsUvJEjdsn@aws-1-eu-central-1.pooler.supabase.com:6543/postgres",
+  ssl: { rejectUnauthorized: false }
 });
 
-const initDB = async () => {
-    try {
+const getAvg = (g) => g.length ? (g.reduce((a, b) => a + parseFloat(b.value), 0) / g.length).toFixed(2) : "0.00";
+const getD = () => new Date().toLocaleDateString('sr-RS');
 
-        await pool.query(`
-        
-        CREATE TABLE IF NOT EXISTS students (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            class_name TEXT DEFAULT '',
-            grades JSONB DEFAULT '[]',
-            activity JSONB DEFAULT '[]',
-            behavior JSONB DEFAULT '[]',
-            absences JSONB DEFAULT '[]'
-        );
-
-        CREATE TABLE IF NOT EXISTS lessons (
-            id SERIAL PRIMARY KEY,
-            subject TEXT,
-            topic TEXT,
-            class_name TEXT,
-            period INT,
-            date TEXT
-        );
-
-        `);
-
-        console.log("✅ ENTERPRISE eDnevnik spreman");
-
-    } catch(err) {
-        console.log(err);
-    }
-};
-
-initDB();
-
-/* ======================================================
-   HELPERS
-====================================================== */
-
-function auth(req,res,next){
-    if(req.session.user){
-        next();
-    } else {
-        res.redirect("/login");
-    }
-}
-
-const avg = (grades) => {
-    if(!grades.length) return "0.00";
-
-    return (
-        grades.reduce((a,b)=>a+parseFloat(b.value),0)
-        / grades.length
-    ).toFixed(2);
-};
-
-const today = () =>
-new Date().toLocaleDateString("sr-RS");
-
-/* ======================================================
-   ULTRA ENTERPRISE LAYOUT
-====================================================== */
-
+/* --- OSNOVNI LAYOUT --- */
 const layout = (title, content) => `
-
+<!DOCTYPE html>
 <html lang="sr">
-
 <head>
-<meta charset="UTF-8">
-
-<title>${title}</title>
-
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-
-<style>
-
-:root{
-    --primary:#2563eb;
-    --primary2:#60a5fa;
-    --bg:#f1f5f9;
-    --sidebar:#0f172a;
-    --card:#ffffff;
-    --text:#0f172a;
-    --muted:#64748b;
-    --border:#e2e8f0;
-    --danger:#ef4444;
-    --success:#10b981;
-    --warning:#f59e0b;
-}
-
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-}
-
-body{
-    background:var(--bg);
-    font-family:'Plus Jakarta Sans',sans-serif;
-    display:flex;
-    color:var(--text);
-}
-
-/* SIDEBAR */
-
-.sidebar{
-    width:290px;
-    height:100vh;
-
-    background:
-    linear-gradient(
-        180deg,
-        #081224 0%,
-        #10264a 50%,
-        #2563eb 100%
-    );
-
-    position:fixed;
-    left:0;
-    top:0;
-
-    padding:25px;
-
-    display:flex;
-    flex-direction:column;
-
-    box-shadow:
-    10px 0 40px rgba(0,0,0,0.15);
-}
-
-.logo{
-    display:flex;
-    align-items:center;
-    gap:14px;
-
-    margin-bottom:40px;
-}
-
-.logo-box{
-    width:56px;
-    height:56px;
-    border-radius:18px;
-
-    background:rgba(255,255,255,0.12);
-
-    display:flex;
-    align-items:center;
-    justify-content:center;
-
-    color:white;
-    font-size:24px;
-}
-
-.logo h2{
-    color:white;
-    font-size:21px;
-    font-weight:800;
-}
-
-.logo span{
-    color:rgba(255,255,255,0.55);
-    font-size:13px;
-}
-
-.nav-title{
-    color:rgba(255,255,255,0.35);
-    font-size:11px;
-    letter-spacing:2px;
-    margin:20px 0 10px 10px;
-    font-weight:700;
-}
-
-.sidebar a{
-    color:rgba(255,255,255,0.72);
-    text-decoration:none;
-
-    display:flex;
-    align-items:center;
-    gap:14px;
-
-    padding:15px 18px;
-
-    border-radius:18px;
-
-    margin-bottom:8px;
-
-    transition:0.25s;
-    font-weight:700;
-}
-
-.sidebar a:hover{
-    background:rgba(255,255,255,0.12);
-    color:white;
-    transform:translateX(4px);
-}
-
-.logout{
-    margin-top:auto;
-    background:rgba(239,68,68,0.12);
-    color:#fecaca !important;
-}
-
-/* MAIN */
-
-.main{
-    flex:1;
-    margin-left:290px;
-    padding:30px;
-}
-
-/* TOPBAR */
-
-.topbar{
-    background:white;
-    border-radius:24px;
-
-    padding:22px 30px;
-
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-
-    margin-bottom:30px;
-
-    border:1px solid var(--border);
-
-    box-shadow:
-    0 10px 30px rgba(0,0,0,0.04);
-}
-
-.topbar h1{
-    font-size:28px;
-    font-weight:800;
-}
-
-.topbar p{
-    color:var(--muted);
-    margin-top:4px;
-}
-
-.user{
-    display:flex;
-    align-items:center;
-    gap:14px;
-}
-
-.avatar{
-    width:50px;
-    height:50px;
-    border-radius:50%;
-
-    background:
-    linear-gradient(
-        135deg,
-        #2563eb,
-        #60a5fa
-    );
-
-    display:flex;
-    align-items:center;
-    justify-content:center;
-
-    color:white;
-    font-weight:800;
-}
-
-/* STATS */
-
-.stats{
-    display:grid;
-    grid-template-columns:
-    repeat(auto-fit,minmax(220px,1fr));
-
-    gap:20px;
-
-    margin-bottom:30px;
-}
-
-.stat{
-    background:white;
-    border-radius:24px;
-
-    padding:25px;
-
-    border:1px solid var(--border);
-
-    box-shadow:
-    0 10px 30px rgba(0,0,0,0.04);
-
-    position:relative;
-    overflow:hidden;
-}
-
-.stat::before{
-    content:"";
-    position:absolute;
-    width:120px;
-    height:120px;
-    border-radius:50%;
-    background:rgba(37,99,235,0.06);
-
-    right:-30px;
-    top:-30px;
-}
-
-.stat small{
-    color:var(--muted);
-    font-weight:700;
-}
-
-.stat h2{
-    margin-top:10px;
-    font-size:34px;
-    font-weight:800;
-}
-
-/* CARDS */
-
-.card{
-    background:white;
-
-    border-radius:24px;
-
-    padding:24px;
-
-    margin-bottom:18px;
-
-    border:1px solid var(--border);
-
-    box-shadow:
-    0 10px 30px rgba(0,0,0,0.04);
-
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-
-    transition:0.25s;
-
-    position:relative;
-    overflow:hidden;
-}
-
-.card::before{
-    content:"";
-    position:absolute;
-    left:0;
-    top:0;
-    width:6px;
-    height:100%;
-
-    background:
-    linear-gradient(
-        180deg,
-        #2563eb,
-        #60a5fa
-    );
-}
-
-.card:hover{
-    transform:translateY(-4px);
-
-    box-shadow:
-    0 20px 40px rgba(0,0,0,0.08);
-}
-
-/* BUTTONS */
-
-.btn{
-    border:none;
-    cursor:pointer;
-
-    padding:13px 18px;
-
-    border-radius:14px;
-
-    font-weight:800;
-
-    transition:0.2s;
-
-    text-decoration:none;
-
-    display:inline-flex;
-    align-items:center;
-    gap:10px;
-}
-
-.btn-blue{
-    background:#2563eb;
-    color:white;
-}
-
-.btn-red{
-    background:#fee2e2;
-    color:#ef4444;
-}
-
-.btn-gray{
-    background:#f1f5f9;
-    color:#475569;
-}
-
-.btn:hover{
-    transform:scale(1.03);
-}
-
-/* FORMS */
-
-input,
-select,
-textarea{
-    width:100%;
-
-    padding:16px;
-
-    border-radius:16px;
-
-    border:1px solid var(--border);
-
-    margin-bottom:14px;
-
-    font-family:inherit;
-    font-size:15px;
-
-    background:#fff;
-}
-
-textarea{
-    resize:vertical;
-}
-
-/* TABLE */
-
-.table{
-    width:100%;
-    border-collapse:collapse;
-}
-
-.table th{
-    text-align:left;
-    color:#64748b;
-    font-size:13px;
-    padding:16px;
-}
-
-.table td{
-    padding:16px;
-    border-top:1px solid #eef2f7;
-}
-
-.badge{
-    padding:6px 12px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:800;
-}
-
-.b-blue{
-    background:#dbeafe;
-    color:#2563eb;
-}
-
-.b-red{
-    background:#fee2e2;
-    color:#ef4444;
-}
-
-.b-green{
-    background:#d1fae5;
-    color:#10b981;
-}
-
-.warning{
-    background:#fff7ed;
-    color:#ea580c;
-    padding:18px;
-    border-radius:18px;
-    font-weight:700;
-    margin-bottom:20px;
-    border:1px solid #fed7aa;
-}
-
-</style>
-
-</head>
-
-<body>
-
-<div class="sidebar">
-
-    <div class="logo">
-        <div class="logo-box">
-            <i class="fas fa-graduation-cap"></i>
-        </div>
-
-        <div>
-            <h2>eDnevnik</h2>
-            <span>Enterprise Edition</span>
-        </div>
-    </div>
-
-    <div class="nav-title">GLAVNO</div>
-
-    <a href="/dashboard">
-        <i class="fas fa-chart-pie"></i>
-        Dashboard
-    </a>
-
-    <a href="/students">
-        <i class="fas fa-users"></i>
-        Učenici
-    </a>
-
-    <a href="/lesson/new">
-        <i class="fas fa-book-open"></i>
-        Novi čas
-    </a>
-
-    <a href="/history">
-        <i class="fas fa-history"></i>
-        Istorija
-    </a>
-
-    <a href="/analytics">
-        <i class="fas fa-chart-line"></i>
-        Analitika
-    </a>
-
-    <a href="/logout" class="logout">
-        <i class="fas fa-sign-out-alt"></i>
-        Odjava
-    </a>
-
-</div>
-
-<div class="main">
-
-<div class="topbar">
-
-    <div>
-        <h1>${title}</h1>
-        <p>Profesionalni elektronski dnevnik za nastavnike</p>
-    </div>
-
-    <div class="user">
-        <div>
-            <strong>Stefan Mihajlović</strong>
-            <p style="margin:0;color:#64748b">Nastavnik</p>
-        </div>
-
-        <div class="avatar">
-            S
-        </div>
-    </div>
-
-</div>
-
-${content}
-
-</div>
-
-</body>
-</html>
-`;
-
-/* ======================================================
-   LOGIN
-====================================================== */
-
-app.get("/login",(req,res)=>{
-
-    res.send(`
-
-    <html>
-
-    <head>
-
-    <title>Login</title>
-
+    <meta charset="UTF-8">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root { --p: #2563eb; --s: #0f172a; --bg: #f8fafc; --border: #e2e8f0; }
+        body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; display: flex; min-height: 100vh; background: var(--bg); color: #1e293b; font-size: 14px; }
+        
+        aside { width: 260px; background: var(--s); color: white; height: 100vh; position: fixed; padding: 30px 20px; display: flex; flex-direction: column; z-index: 1000; }
+        aside h2 { font-weight: 800; text-align: center; margin-bottom: 30px; color: #3b82f6; font-size: 18px; letter-spacing: 1px; }
+        aside a { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.5); text-decoration: none; padding: 12px 15px; border-radius: 10px; margin-bottom: 4px; font-weight: 600; transition: 0.2s; }
+        aside a:hover { background: rgba(255,255,255,0.08); color: white; }
+        .logout { margin-top: auto; color: #fb7185 !important; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px !important; }
 
-    body{
-        margin:0;
-        height:100vh;
+        main { flex: 1; margin-left: 260px; padding: 40px 60px; background: white; min-height: 100vh; }
+        h1 { font-weight: 800; font-size: 28px; margin-bottom: 30px; color: var(--s); letter-spacing: -1px; }
 
-        display:flex;
-        align-items:center;
-        justify-content:center;
+        .card { background: #fff; border-radius: 14px; padding: 18px 22px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); border-left: 6px solid var(--p); transition: 0.3s; }
+        
+        .btn { padding: 10px 18px; border-radius: 8px; border: none; cursor: pointer; font-weight: 700; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-size: 13px; }
+        .btn-p { background: var(--p); color: white; }
+        .btn-red { background: #fee2e2; color: #ef4444; }
+        .btn-edit { background: #f1f5f9; color: #475569; }
 
-        background:
-        linear-gradient(
-            135deg,
-            #081224,
-            #10264a,
-            #2563eb
-        );
+        #modalOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 3000; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal { background: white; padding: 30px; border-radius: 20px; width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
 
-        font-family:sans-serif;
-    }
-
-    .box{
-        width:420px;
-
-        background:white;
-
-        padding:50px;
-
-        border-radius:30px;
-
-        box-shadow:
-        0 20px 60px rgba(0,0,0,0.25);
-    }
-
-    h1{
-        margin-bottom:30px;
-    }
-
-    input{
-        width:100%;
-        padding:18px;
-
-        border-radius:16px;
-        border:1px solid #ddd;
-
-        margin-bottom:15px;
-    }
-
-    button{
-        width:100%;
-
-        padding:18px;
-
-        border:none;
-
-        border-radius:16px;
-
-        background:#2563eb;
-        color:white;
-
-        font-weight:800;
-        cursor:pointer;
-    }
-
+        .badge { font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; }
     </style>
+</head>
+<body>
+    <aside>
+        <h2>Е-ДНЕВНИК</h2>
+        <a href="/dashboard"><i class="fas fa-home"></i> Дашборд</a>
+        <a href="/students"><i class="fas fa-users"></i> Ученици</a>
+        <a href="/lesson/new"><i class="fas fa-plus-circle"></i> Нови час</a>
+        <a href="/history"><i class="fas fa-history"></i> Историја</a>
+        <a href="/logout" class="logout"><i class="fas fa-power-off"></i> Одјави се</a>
+    </aside>
+    <main>
+        <h1>${title}</h1>
+        ${content}
+    </main>
 
-    </head>
-
-    <body>
-
-    <div class="box">
-
-    <h1>eDnevnik Login</h1>
-
-    <form method="POST">
-
-    <input
-    name="user"
-    placeholder="Korisničko ime"
-    >
-
-    <input
-    type="password"
-    name="pass"
-    placeholder="Lozinka"
-    >
-
-    <button>
-    PRIJAVI SE
-    </button>
-
-    </form>
-
-    </div>
-
-    </body>
-
-    </html>
-
-    `);
-});
-
-app.post("/login",(req,res)=>{
-
-    if(
-        req.body.user === "stefanmihajlovic"
-        &&
-        req.body.pass === "stefanmihajloviccc"
-    ){
-        req.session.user = true;
-        return res.redirect("/dashboard");
-    }
-
-    res.send(`
-    <script>
-    alert("Pogrešan login");
-    location="/login";
-    </script>
-    `);
-});
-
-/* ======================================================
-   DASHBOARD
-====================================================== */
-
-app.get("/dashboard", auth, async (req,res)=>{
-
-    const students =
-    await pool.query("SELECT * FROM students");
-
-    const lessons =
-    await pool.query("SELECT * FROM lessons");
-
-    const todayLessons =
-    lessons.rows.filter(x=>x.date===today());
-
-    const content = `
-
-    <div class="stats">
-
-        <div class="stat">
-            <small>UKUPNO UČENIKA</small>
-            <h2>${students.rows.length}</h2>
-        </div>
-
-        <div class="stat">
-            <small>DANAŠNJI ČASOVI</small>
-            <h2>${todayLessons.length}</h2>
-        </div>
-
-        <div class="stat">
-            <small>AKTIVNI PREDMETI</small>
-            <h2>8</h2>
-        </div>
-
-        <div class="stat">
-            <small>IZOSTANCI</small>
-            <h2>
-            ${
-                students.rows.reduce(
-                    (a,b)=>a+b.absences.length,
-                    0
-                )
-            }
-            </h2>
-        </div>
-
-    </div>
-
-    ${
-        todayLessons.map(l=>`
-
-        <div class="card">
-
-            <div>
-
-                <small style="color:#64748b">
-                ${l.date}
-                </small>
-
-                <h2 style="margin-top:8px">
-                ${l.subject}
-                </h2>
-
-                <p style="margin-top:6px;color:#64748b">
-                ${l.topic}
-                </p>
-
-            </div>
-
-            <form method="POST" action="/lesson/delete/${l.id}">
-
-                <button class="btn btn-red">
-                    <i class="fas fa-trash"></i>
-                </button>
-
+    <div id="modalOverlay">
+        <div class="modal">
+            <h3 style="margin-top:0;">Правдање изостанка</h3>
+            <form id="justifyForm" method="POST">
+                <select name="status" style="width:100%; padding:10px; margin-bottom:15px; border-radius:8px;">
+                    <option value="Оправдан">Оправдан</option>
+                    <option value="Неоправдан">Неоправдан</option>
+                </select>
+                <textarea name="note" placeholder="Разlog..." rows="3" required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd;"></textarea>
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button type="submit" class="btn btn-p" style="flex:1; justify-content:center;">САЧУВАЈ</button>
+                    <button type="button" onclick="closeModal()" class="btn btn-edit">ОТКАЖИ</button>
+                </div>
             </form>
-
         </div>
-
-        `).join("")
-    }
-
-    `;
-
-    res.send(
-        layout("Dashboard",content)
-    );
-});
-
-/* ======================================================
-   STUDENTS
-====================================================== */
-
-app.get("/students", auth, async (req,res)=>{
-
-    const { rows } =
-    await pool.query(
-        "SELECT * FROM students ORDER BY name ASC"
-    );
-
-    const content = `
-
-    <div class="card">
-
-    <form
-    method="POST"
-    action="/students/add"
-    style="
-    width:100%;
-    display:flex;
-    gap:14px;
-    "
-    >
-
-    <input
-    name="name"
-    placeholder="Ime učenika"
-    >
-
-    <input
-    name="class_name"
-    placeholder="Odeljenje"
-    >
-
-    <button class="btn btn-blue">
-    DODAJ
-    </button>
-
-    </form>
-
     </div>
 
-    ${
-        rows.map(s=>`
+    <script>
+        function openJustifyModal(sId, idx) {
+            document.getElementById('justifyForm').action = "/student/" + sId + "/justify/" + idx;
+            document.getElementById('modalOverlay').style.display = 'flex';
+        }
+        function closeModal() { document.getElementById('modalOverlay').style.display = 'none'; }
+        function toggleBehavior(v) { document.getElementById('vladanjeBox').style.display = (v === 'behavior') ? 'block' : 'none'; }
+    </script>
+</body>
+</html>`;
 
-        <div class="card">
-
-            <div>
-
-                <small style="color:#64748b">
-                ${s.class_name || "Nema odeljenje"}
-                </small>
-
-                <h2 style="margin:8px 0">
-                ${s.name}
-                </h2>
-
-                <span class="badge b-blue">
-                Prosek ${avg(s.grades)}
-                </span>
-
-            </div>
-
-            <a
-            href="/student/${s.id}"
-            class="btn btn-blue"
-            >
-            PROFIL
-            </a>
-
-        </div>
-
-        `).join("")
-    }
-
-    `;
-
-    res.send(
-        layout("Učenici",content)
-    );
+/* --- LOGIN RUTA SA TVOJOM SLIKOM --- */
+app.get("/login", (req, res) => {
+    res.send(`<html><head><meta charset="UTF-8"><title>Пријава</title><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet"><style>
+            body { margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; background: url('/pozadina dnevnik.jpg') center/cover no-repeat; font-family: 'Plus Jakarta Sans', sans-serif; }
+            .glass-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(15px); padding: 50px; border-radius: 30px; width: 380px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.4); }
+            h2 { font-size: 28px; font-weight: 800; color: #0f172a; margin-bottom: 35px; }
+            input { width: 100%; padding: 16px; border-radius: 15px; border: 1px solid rgba(0,0,0,0.1); background: white; font-size: 15px; margin-bottom: 20px; box-sizing: border-box; }
+            button { width: 100%; padding: 18px; border-radius: 15px; border: none; background: #0f172a; color: white; font-weight: 800; font-size: 16px; cursor: pointer; transition: 0.3s; }
+            button:hover { background: #1e293b; transform: translateY(-2px); }
+        </style></head><body><div class="glass-card"><h2>ПРИЈАВА</h2><form method="POST"><input name="user" placeholder="Корисничко име" required><input name="pass" type="password" placeholder="Лозинка" required><button type="submit">УЂИ У ДНЕВНИК</button></form></div></body></html>`);
 });
 
-/* ======================================================
-   STUDENT PROFILE
-====================================================== */
+app.post("/login", (req, res) => {
+    if (req.body.user === "stefanmihajlovic" && req.body.pass === "stefanmihajloviccc") { sessions.add("admin"); return res.redirect("/dashboard"); }
+    res.send("<script>alert('Грешка!'); window.location='/login';</script>");
+});
 
-app.get("/student/:id", auth, async (req,res)=>{
-
-    const { rows } =
-    await pool.query(
-        "SELECT * FROM students WHERE id=$1",
-        [req.params.id]
-    );
-
-    const s = rows[0];
-
-    if(!s) return res.redirect("/students");
-
-    const warnings = [];
-
-    if(
-        s.grades.filter(x=>x.value=="1").length >= 3
-    ){
-        warnings.push(
-        "Učenik ima 3 ili više jedinica");
-    }
-
-    if(
-        s.behavior.length >= 3
-    ){
-        warnings.push(
-        "Pojačan vaspitni rad");
-    }
+/* --- RUTE ZA PODATKE --- */
+app.get("/student/:id", async (req, res) => {
+    const { rows } = await pool.query("SELECT * FROM students WHERE id = $1", [req.params.id]);
+    const s = rows[0]; if(!s) return res.redirect("/students");
 
     const history = [
+        ...s.grades.map((i, idx) => ({...i, type: 'grades', idx, c: '#2563eb', l: 'Оцена'})),
+        ...s.activity.map((i, idx) => ({...i, type: 'activity', idx, c: '#10b981', l: 'Активnost'})),
+        ...s.behavior.map((i, idx) => ({...i, type: 'behavior', idx, c: '#a855f7', l: 'Владање', isB: true})),
+        ...s.absences.map((i, idx) => {
+            // Dinamička boja ivice za izostanke
+            let absColor = '#f59e0b'; // Neregulisan (Narandžasta)
+            if(i.status === 'Оправдан') absColor = '#10b981'; // Zelena
+            if(i.status === 'Неоправдан') absColor = '#ef4444'; // Crvena
+            return {...i, type: 'absences', idx, c: absColor, l: 'Изостанак', isA: true};
+        })
+    ].sort((a,b) => new Date(b.date) - new Date(a.date));
 
-        ...s.grades.map((x,i)=>({
-            ...x,
-            type:"grades",
-            idx:i,
-            color:"#2563eb"
-        })),
-
-        ...s.activity.map((x,i)=>({
-            ...x,
-            type:"activity",
-            idx:i,
-            color:"#10b981"
-        })),
-
-        ...s.behavior.map((x,i)=>({
-            ...x,
-            type:"behavior",
-            idx:i,
-            color:"#f59e0b"
-        })),
-
-        ...s.absences.map((x,i)=>({
-            ...x,
-            type:"absences",
-            idx:i,
-            color:"#ef4444"
-        }))
-
-    ].sort((a,b)=>
-        new Date(b.date)-new Date(a.date)
-    );
-
-    const content = `
-
-    ${
-        warnings.map(w=>`
-        <div class="warning">
-        ⚠ ${w}
-        </div>
-        `).join("")
-    }
-
-    <div
-    style="
-    display:grid;
-    grid-template-columns:380px 1fr;
-    gap:25px;
-    "
-    >
-
-    <div>
-
-    <div class="card">
-
-    <form
-    method="POST"
-    action="/student/${s.id}/add"
-    style="width:100%"
-    >
-
-    <select name="type">
-
-        <option value="grades">
-        Ocena
-        </option>
-
-        <option value="activity">
-        Aktivnost
-        </option>
-
-        <option value="behavior">
-        Vladanje
-        </option>
-
-    </select>
-
-    <input
-    name="subject"
-    placeholder="Predmet"
-    required
-    >
-
-    <input
-    name="value"
-    placeholder="Ocena / vrednost"
-    required
-    >
-
-    <textarea
-    name="note"
-    placeholder="Napomena"
-    rows="4"
-    ></textarea>
-
-    <button class="btn btn-blue">
-    SAČUVAJ
-    </button>
-
-    </form>
-
-    </div>
-
-    </div>
-
-    <div>
-
-    ${
-        history.map(h=>`
-
-        <div
-        class="card"
-        style="
-        border-left:6px solid ${h.color}
-        "
-        >
-
-            <div>
-
-                <small style="color:#64748b">
-                ${h.date}
-                </small>
-
-                <h2 style="margin:6px 0">
-                ${h.subject || "Izostanak"}
-                </h2>
-
-                <p style="color:#64748b">
-                ${h.note || ""}
-                </p>
-
-            </div>
-
-            <div
-            style="
-            display:flex;
-            align-items:center;
-            gap:15px;
-            "
-            >
-
-                <div
-                style="
-                font-size:28px;
-                font-weight:800;
-                "
-                >
-                ${h.value || ""}
+    let html = `<div style="display:grid; grid-template-columns: 320px 1fr; gap:40px;">
+        <div style="background:#f1f5f9; padding:25px; border-radius:20px; position:sticky; top:20px; height:fit-content;">
+            <h4 id="fTitle" style="margin-top:0;">Нови унос</h4>
+            <form id="uForm" method="POST" action="/student/${s.id}/add">
+                <input type="hidden" name="old_idx" id="oldIdx">
+                <select name="type" id="fType" onchange="toggleBehavior(this.value)">
+                    <option value="grades">Оцена</option><option value="activity">Активност</option><option value="behavior">Владање</option>
+                </select>
+                <div id="vladanjeBox" style="display:none; margin-bottom:10px;">
+                    <select name="behavior_type" id="fBeh">
+                        <option value="Напомена">Напомена</option><option value="Опомена">Опомена</option><option value="Укор">Укор</option>
+                        <option value="Похвала">Похвала</option><option value="Награда">Награда</option><option value="Предлог">Предлог</option><option value="Искључење">Искључење</option>
+                    </select>
                 </div>
-
-                <form
-                method="POST"
-                action="/student/${s.id}/delete-item/${h.type}/${h.idx}"
-                >
-
-                    <button class="btn btn-red">
-                    <i class="fas fa-trash"></i>
-                    </button>
-
-                </form>
-
-            </div>
-
+                <input name="subject" id="fSub" placeholder="Предмет" required>
+                <input name="value" id="fVal" placeholder="Вредност">
+                <textarea name="note" id="fNote" placeholder="Белешка..." rows="3"></textarea>
+                <button class="btn btn-p" id="fBtn" style="width:100%; justify-content:center">САЧУВАЈ</button>
+            </form>
         </div>
-
-        `).join("")
-    }
-
-    </div>
-
-    </div>
-
-    `;
-
-    res.send(
-        layout(s.name,content)
-    );
-});
-
-/* ======================================================
-   ADD ITEM
-====================================================== */
-
-app.post("/student/:id/add", auth, async (req,res)=>{
-
-    const { rows } =
-    await pool.query(
-        "SELECT * FROM students WHERE id=$1",
-        [req.params.id]
-    );
-
-    const s = rows[0];
-
-    const type = req.body.type;
-
-    const list = [
-        ...s[type],
-        {
-            subject:req.body.subject,
-            value:req.body.value,
-            note:req.body.note,
-            date:today()
+        <div>${history.map(i => `
+            <div class="card" style="border-left-color: ${i.c}">
+                <div style="flex:1">
+                    <small style="color:#94a3b8; font-weight:700;">${i.l} | ${i.date}</small>
+                    <h4 style="margin:5px 0;">
+                        ${i.isB ? '<span class="badge" style="background:#f3e8ff; color:#7e22ce; margin-right:5px;">'+i.behavior_type+'</span>' : ''}
+                        ${i.isA ? '<span class="badge" style="background:'+i.c+'22; color:'+i.c+'; margin-right:5px;">'+i.status+'</span>' : (i.subject || 'Изостанак')}
+                    </h4>
+                    <p style="margin:0; font-size:13px; color:#64748b;">${i.note || '/'}</p>
+                </div>
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <div style="font-size:20px; font-weight:800;">${i.isA ? '' : i.value}</div>
+                    <div style="display:flex; gap:5px;">
+                        ${i.isA ? `<button onclick="openJustifyModal(${s.id}, ${i.idx})" class="btn btn-edit" style="background:#fef3c7; color:#d97706;">ПРАВДАЈ</button>` : `<button onclick="editItem('${i.type}', ${i.idx}, '${i.subject}', '${i.value}', '${(i.note || "").replace(/'/g, "\\'")}', '${i.behavior_type || ""}')" class="btn btn-edit"><i class="fas fa-edit"></i></button>`}
+                        <form method="POST" action="/student/${s.id}/delete-item/${i.type}/${i.idx}" style="margin:0"><button class="btn btn-red"><i class="fas fa-trash"></i></button></form>
+                    </div>
+                </div>
+            </div>`).join("")}</div></div>
+    <script>
+        function editItem(type, idx, sub, val, note, beh) {
+            document.getElementById('fTitle').innerText = "Измени унос";
+            document.getElementById('fType').value = type;
+            toggleBehavior(type);
+            document.getElementById('fSub').value = sub;
+            document.getElementById('fVal').value = val;
+            document.getElementById('fNote').value = note;
+            if(beh) document.getElementById('fBeh').value = beh;
+            document.getElementById('oldIdx').value = idx;
+            document.getElementById('uForm').action = "/student/${s.id}/edit-item";
+            document.getElementById('fBtn').innerText = "АЖУРИРАЈ";
+            window.scrollTo({top: 0, behavior: 'smooth'});
         }
-    ];
-
-    await pool.query(
-        `UPDATE students SET ${type}=$1 WHERE id=$2`,
-        [JSON.stringify(list),req.params.id]
-    );
-
-    res.redirect("/student/"+req.params.id);
+    </script>`;
+    res.send(layout(s.name, html));
 });
 
-/* ======================================================
-   DELETE ITEM
-====================================================== */
-
-app.post("/student/:id/delete-item/:type/:idx",
-auth,
-async (req,res)=>{
-
-    const { rows } =
-    await pool.query(
-        "SELECT * FROM students WHERE id=$1",
-        [req.params.id]
-    );
-
-    const s = rows[0];
-
-    s[req.params.type]
-    .splice(req.params.idx,1);
-
-    await pool.query(
-        `UPDATE students SET ${req.params.type}=$1 WHERE id=$2`,
-        [
-            JSON.stringify(s[req.params.type]),
-            req.params.id
-        ]
-    );
-
-    res.redirect("/student/"+req.params.id);
+// --- API ZA PRAVDANJE ---
+app.post("/student/:id/justify/:absIdx", async (req, res) => {
+    const { rows } = await pool.query("SELECT absences FROM students WHERE id = $1", [req.params.id]);
+    const list = rows[0].absences;
+    list[req.params.absIdx].status = req.body.status;
+    list[req.params.absIdx].note = req.body.note;
+    await pool.query("UPDATE students SET absences = $1 WHERE id = $2", [JSON.stringify(list), req.params.id]);
+    res.redirect("/student/" + req.params.id);
 });
 
-/* ======================================================
-   LESSON
-====================================================== */
-
-app.get("/lesson/new", auth, async (req,res)=>{
-
-    const { rows } =
-    await pool.query(
-        "SELECT * FROM students ORDER BY name ASC"
-    );
-
-    const content = `
-
-    <div class="card">
-
-    <form
-    method="POST"
-    action="/lesson/save"
-    style="width:100%"
-    >
-
-    <input
-    name="sub"
-    placeholder="Predmet"
-    required
-    >
-
-    <input
-    name="top"
-    placeholder="Nastavna jedinica"
-    required
-    >
-
-    <input
-    name="class_name"
-    placeholder="Odeljenje"
-    required
-    >
-
-    <input
-    type="number"
-    name="per"
-    placeholder="Broj časa"
-    required
-    >
-
-    <h3 style="margin:20px 0">
-    Odsutni učenici
-    </h3>
-
-    <div
-    style="
-    max-height:300px;
-    overflow:auto;
-    background:#f8fafc;
-    padding:15px;
-    border-radius:16px;
-    "
-    >
-
-    ${
-        rows.map(s=>`
-
-        <label
-        style="
-        display:flex;
-        align-items:center;
-        gap:10px;
-        margin-bottom:12px;
-        "
-        >
-
-        <input
-        type="checkbox"
-        name="abs_ids"
-        value="${s.id}"
-        style="width:auto"
-        >
-
-        ${s.name}
-
-        </label>
-
-        `).join("")
-    }
-
-    </div>
-
-    <button
-    class="btn btn-blue"
-    style="
-    margin-top:25px;
-    width:100%;
-    justify-content:center;
-    "
-    >
-
-    ZAPOČNI ČAS
-
-    </button>
-
-    </form>
-
-    </div>
-
-    `;
-
-    res.send(
-        layout("Novi čas",content)
-    );
+/* --- OSTALO (Dashboard, Students, Add, Save, Delete...) --- */
+app.get("/dashboard", async (req, res) => {
+    const danas = getD();
+    const { rows } = await pool.query("SELECT * FROM lessons WHERE date = $1 ORDER BY id DESC", [danas]);
+    const list = rows.map(l => `<div class="card"><div><small>${l.date}</small><h4 style="margin:5px 0">${l.subject} (${l.period}. час)</h4><p style="margin:0; font-size:13px; opacity:0.7;">${l.topic}</p></div><form method="POST" action="/lesson/delete/${l.id}"><button class="btn btn-red"><i class="fas fa-trash"></i></button></form></div>`).join("");
+    res.send(layout("Данас", list || `<div class="card" style="border:none; justify-content:center;">Нема уписаних часова за данас.</div>`));
 });
 
-app.post("/lesson/save", auth, async (req,res)=>{
+app.get("/students", async (req, res) => {
+    const { rows } = await pool.query("SELECT * FROM students ORDER BY name ASC");
+    const list = rows.map(s => `<div class="card"><div><h4 style="margin:0">${s.name}</h4><small>Просек: <b>${getAvg(s.grades)}</b></small></div><a href="/student/${s.id}" class="btn btn-p">ПРОФИЛ</a></div>`).join("");
+    res.send(layout("Ученици", `<div style="background:#f1f5f9; padding:20px; border-radius:15px; margin-bottom:20px;"><form method="POST" action="/students/add" style="display:flex; gap:10px;"><input name="name" placeholder="Иme ученика" style="margin:0; flex:1; padding:10px; border-radius:8px; border:1px solid #ddd;"><button class="btn btn-p">ДОДАЈ</button></form></div>${list}`));
+});
 
-    await pool.query(
-        `
-        INSERT INTO lessons
-        (subject,topic,class_name,period,date)
-        VALUES ($1,$2,$3,$4,$5)
-        `,
-        [
-            req.body.sub,
-            req.body.top,
-            req.body.class_name,
-            req.body.per,
-            today()
-        ]
-    );
+app.post("/students/add", async (req, res) => { await pool.query("INSERT INTO students (name) VALUES ($1)", [req.body.name]); res.redirect("/students"); });
 
-    if(req.body.abs_ids){
+app.post("/student/:id/add", async (req, res) => {
+    const { rows } = await pool.query("SELECT * FROM students WHERE id = $1", [req.params.id]);
+    const s = rows[0]; const type = req.body.type;
+    const item = { subject: req.body.subject, value: req.body.value, note: req.body.note, date: getD() };
+    if(type === 'behavior') item.behavior_type = req.body.behavior_type;
+    const list = [...s[type], item];
+    await pool.query(`UPDATE students SET ${type} = $1 WHERE id = $2`, [JSON.stringify(list), req.params.id]);
+    res.redirect("/student/" + req.params.id);
+});
 
-        const ids =
-        Array.isArray(req.body.abs_ids)
-        ?
-        req.body.abs_ids
-        :
-        [req.body.abs_ids];
+app.post("/student/:id/edit-item", async (req, res) => {
+    const { rows } = await pool.query("SELECT * FROM students WHERE id = $1", [req.params.id]);
+    const s = rows[0]; const { type, old_idx, subject, value, note, behavior_type } = req.body;
+    s[type][old_idx] = { ...s[type][old_idx], subject, value, note, behavior_type };
+    await pool.query(`UPDATE students SET ${type} = $1 WHERE id = $2`, [JSON.stringify(s[type]), req.params.id]);
+    res.redirect("/student/" + req.params.id);
+});
 
-        for(let id of ids){
+app.post("/student/:id/delete-item/:type/:idx", async (req, res) => {
+    const { rows } = await pool.query("SELECT * FROM students WHERE id = $1", [req.params.id]);
+    const s = rows[0]; const type = req.params.type;
+    s[type].splice(req.params.idx, 1);
+    await pool.query(`UPDATE students SET ${type} = $1 WHERE id = $2`, [JSON.stringify(s[type]), req.params.id]);
+    res.redirect("/student/" + req.params.id);
+});
 
-            const { rows } =
-            await pool.query(
-                "SELECT absences FROM students WHERE id=$1",
-                [id]
-            );
+app.get("/lesson/new", async (req, res) => {
+    const { rows } = await pool.query("SELECT * FROM students ORDER BY name ASC");
+    const list = rows.map(s => `<label style="display:flex; align-items:center; gap:10px; padding:10px; border-bottom:1px solid #eee; cursor:pointer;"><input type="checkbox" name="abs_ids" value="${s.id}" style="width:auto; margin:0"> ${s.name}</label>`).join("");
+    res.send(layout("Нови час", `<div style="max-width:600px; margin:0 auto; background:#f1f5f9; padding:30px; border-radius:20px;"><form method="POST" action="/lesson/save"><input name="sub" placeholder="Предмет" required style="width:100%; padding:10px; margin-bottom:10px;"><input name="top" placeholder="Наставна јединица" required style="width:100%; padding:10px; margin-bottom:10px;"><input name="per" type="number" placeholder="Број часа" required style="width:100%; padding:10px; margin-bottom:10px;"><div style="margin-top:10px;"><b>Одсутни:</b><div style="max-height:200px; overflow-y:auto; background:white; border-radius:10px; margin-top:10px;">${list}</div></div><button class="btn btn-p" style="width:100%; margin-top:20px; justify-content:center">УПИШИ ЧАС</button></form></div>`));
+});
 
-            const list = [
-                ...rows[0].absences,
-                {
-                    subject:req.body.sub,
-                    status:"Neregulisan",
-                    date:today()
-                }
-            ];
-
-            await pool.query(
-                `
-                UPDATE students
-                SET absences=$1
-                WHERE id=$2
-                `,
-                [JSON.stringify(list),id]
-            );
+app.post("/lesson/save", async (req, res) => {
+    const datum = getD();
+    await pool.query("INSERT INTO lessons (subject, topic, period, date) VALUES ($1, $2, $3, $4)", [req.body.sub, req.body.top, req.body.per, datum]);
+    if(req.body.abs_ids) {
+        const ids = Array.isArray(req.body.abs_ids) ? req.body.abs_ids : [req.body.abs_ids];
+        for(let id of ids) {
+            const { rows } = await pool.query("SELECT absences FROM students WHERE id = $1", [id]);
+            const list = [...rows[0].absences, { subject: req.body.sub, date: datum, status: "Нерегулисан", note: "" }];
+            await pool.query("UPDATE students SET absences = $1 WHERE id = $2", [JSON.stringify(list), id]);
         }
     }
-
     res.redirect("/dashboard");
 });
 
-/* ======================================================
-   HISTORY
-====================================================== */
-
-app.get("/history", auth, async (req,res)=>{
-
-    const { rows } =
-    await pool.query(
-        "SELECT * FROM lessons ORDER BY id DESC"
-    );
-
-    const content =
-
-    rows.map(l=>`
-
-    <div class="card">
-
-        <div>
-
-            <small style="color:#64748b">
-            ${l.date}
-            </small>
-
-            <h2 style="margin:6px 0">
-            ${l.subject}
-            </h2>
-
-            <p style="color:#64748b">
-            ${l.topic}
-            </p>
-
-        </div>
-
-        <span class="badge b-blue">
-        ${l.class_name}
-        </span>
-
-    </div>
-
-    `).join("");
-
-    res.send(
-        layout("Istorija časova",content)
-    );
+app.get("/history", async (req, res) => {
+    const { rows } = await pool.query("SELECT * FROM lessons ORDER BY id DESC");
+    const list = rows.map(l => `<div class="card"><div><small>${l.date}</small><h4>${l.subject} (${l.period}. час)</h4><p style="font-size:13px; opacity:0.7;">${l.topic}</p></div></div>`).join("");
+    res.send(layout("Архива", list || "<p>Архива је празна.</p>"));
 });
 
-/* ======================================================
-   ANALYTICS
-====================================================== */
+app.post("/lesson/delete/:id", async (req, res) => { await pool.query("DELETE FROM lessons WHERE id = $1", [req.params.id]); res.redirect("/dashboard"); });
+app.get("/logout", (req, res) => { sessions.delete("admin"); res.redirect("/login"); });
+app.get("/", (req, res) => res.redirect("/dashboard"));
 
-app.get("/analytics", auth, async (req,res)=>{
-
-    const { rows } =
-    await pool.query(
-        "SELECT * FROM students"
-    );
-
-    const totalGrades =
-    rows.reduce(
-        (a,b)=>a+b.grades.length,
-        0
-    );
-
-    const totalAbs =
-    rows.reduce(
-        (a,b)=>a+b.absences.length,
-        0
-    );
-
-    const avgAll =
-    rows.length
-    ?
-    (
-        rows.reduce(
-            (a,b)=>a+parseFloat(avg(b.grades)),
-            0
-        ) / rows.length
-    ).toFixed(2)
-    :
-    "0.00";
-
-    const content = `
-
-    <div class="stats">
-
-        <div class="stat">
-            <small>UKUPNO OCENA</small>
-            <h2>${totalGrades}</h2>
-        </div>
-
-        <div class="stat">
-            <small>PROSEČAN USPEH</small>
-            <h2>${avgAll}</h2>
-        </div>
-
-        <div class="stat">
-            <small>IZOSTANCI</small>
-            <h2>${totalAbs}</h2>
-        </div>
-
-    </div>
-
-    `;
-
-    res.send(
-        layout("Analitika",content)
-    );
-});
-
-/* ======================================================
-   ADD STUDENT
-====================================================== */
-
-app.post("/students/add", auth, async (req,res)=>{
-
-    await pool.query(
-        `
-        INSERT INTO students
-        (name,class_name)
-        VALUES ($1,$2)
-        `,
-        [
-            req.body.name,
-            req.body.class_name
-        ]
-    );
-
-    res.redirect("/students");
-});
-
-/* ======================================================
-   DELETE LESSON
-====================================================== */
-
-app.post("/lesson/delete/:id",
-auth,
-async (req,res)=>{
-
-    await pool.query(
-        "DELETE FROM lessons WHERE id=$1",
-        [req.params.id]
-    );
-
-    res.redirect("/dashboard");
-});
-
-/* ======================================================
-   LOGOUT
-====================================================== */
-
-app.get("/logout",(req,res)=>{
-
-    req.session.destroy(()=>{
-        res.redirect("/login");
-    });
-});
-
-/* ======================================================
-   ROOT
-====================================================== */
-
-app.get("/",(req,res)=>{
-    res.redirect("/dashboard");
-});
-
-/* ======================================================
-   START
-====================================================== */
-
-const PORT =
-process.env.PORT || 5000;
-
-app.listen(PORT,()=>{
-
-    console.log(
-    "🚀 eDnevnik pokrenut na portu "+PORT
-    );
-
-});
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server Online na portu ${PORT}`));
