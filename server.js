@@ -9,12 +9,12 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 app.use(session({
-  secret: "edu-secret",
+  secret: "edu-secret-final",
   resave: false,
   saveUninitialized: true
 }));
 
-/* ================= DB ================= */
+/* ================= DATABASE ================= */
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -36,7 +36,6 @@ const avg = (arr=[]) => {
   return (g.reduce((a,b)=>a+Number(b.value),0)/g.length).toFixed(2);
 };
 
-/* 🧠 SMART FINAL GRADE */
 const finalGrade = (grades=[]) => {
   const a = Number(avg(grades));
   if(a >= 4.75) return 5;
@@ -46,6 +45,14 @@ const finalGrade = (grades=[]) => {
   return 1;
 };
 
+/* ================= RANDOM CREDENTIALS ================= */
+
+const genUsername = () =>
+  "user_" + Math.random().toString(36).substring(2, 8);
+
+const genPassword = () =>
+  Math.random().toString(36).substring(2, 10);
+
 /* ================= AUTH ================= */
 
 app.get("/login",(req,res)=>{
@@ -54,8 +61,8 @@ res.send(`
 <body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#f1f5f9;font-family:Arial">
 <form method="POST" style="background:white;padding:30px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.1)">
 <h2>📘 E-DNEVNIK</h2>
-<input name="u" placeholder="user" style="width:100%;padding:10px;margin:5px 0">
-<input name="p" type="password" placeholder="pass" style="width:100%;padding:10px;margin:5px 0">
+<input name="u" placeholder="username" style="width:100%;padding:10px;margin:5px 0">
+<input name="p" type="password" placeholder="password" style="width:100%;padding:10px;margin:5px 0">
 <button style="width:100%;padding:10px;background:#2563eb;color:white;border:none;border-radius:10px">Login</button>
 </form>
 </body>
@@ -63,12 +70,20 @@ res.send(`
 `);
 });
 
-app.post("/login",(req,res)=>{
-if(req.body.u==="admin" && req.body.p==="admin"){
-req.session.user=true;
+/* LOGIN FROM DB */
+
+app.post("/login", async (req,res)=>{
+const {rows}=await pool.query(
+"SELECT * FROM users WHERE username=$1 AND password=$2",
+[req.body.u,req.body.p]
+);
+
+if(rows.length){
+req.session.user=rows[0];
 return res.redirect("/students");
 }
-res.send("error login");
+
+res.send("❌ pogresan login");
 });
 
 const auth=(req,res,next)=>{
@@ -78,30 +93,30 @@ next();
 
 /* ================= UI ================= */
 
-const layout = (title,content)=>`
+const layout=(title,content)=>`
 <html>
 <head>
 <style>
-body{margin:0;font-family:Arial;background:#f8fafc;color:#0f172a}
+body{margin:0;font-family:Arial;background:linear-gradient(135deg,#e0f2fe,#f8fafc);color:#0f172a}
 header{
 display:flex;
 justify-content:space-between;
-padding:15px;
+padding:15px 20px;
 background:white;
 box-shadow:0 2px 10px rgba(0,0,0,0.05);
 }
-main{padding:20px}
+main{padding:25px;max-width:1100px;margin:auto}
 .card{
 background:white;
 padding:15px;
-border-radius:15px;
+border-radius:16px;
 margin-bottom:10px;
-box-shadow:0 5px 15px rgba(0,0,0,0.05);
+box-shadow:0 10px 25px rgba(0,0,0,0.05);
 }
-.btn{padding:8px 12px;border:none;border-radius:10px;cursor:pointer}
+.btn{padding:8px 12px;border:none;border-radius:10px;cursor:pointer;font-weight:600}
 .blue{background:#2563eb;color:white}
-.red{background:#dc2626;color:white}
 .green{background:#16a34a;color:white}
+.red{background:#dc2626;color:white}
 input,textarea{
 width:100%;
 padding:10px;
@@ -111,14 +126,13 @@ border:1px solid #ddd;
 }
 .flex{display:flex;gap:10px;flex-wrap:wrap}
 small{color:#64748b}
-.dark{background:#0f172a;color:white}
 </style>
 </head>
 <body>
 
 <header>
-<h3>📘 E-DNEVNIK PRO</h3>
-<a href="/toggle-theme">🌙/☀️</a>
+<h3>📘 E-DNEVNIK ULTIMATE</h3>
+<a href="/logout">logout</a>
 </header>
 
 <main>
@@ -132,6 +146,8 @@ ${content}
 
 /* ================= STUDENTS ================= */
 
+app.get("/",(req,res)=>res.redirect("/students"));
+
 app.get("/students",auth,async(req,res)=>{
 const {rows}=await pool.query("SELECT * FROM students ORDER BY id DESC");
 
@@ -143,11 +159,11 @@ res.send(layout("Učenici",`
 </form>
 </div>
 
-<form method="GET" action="/students" class="card">
-<input name="q" placeholder="🔍 pretraga">
+<form method="POST" action="/users/add" class="card">
+<button class="btn green">👤 Dodaj profil</button>
 </form>
 
-<a href="/random"><button class="btn green">🎲 Random</button></a>
+<a href="/random"><button class="btn green">🎲 Random učenik</button></a>
 
 ${rows.map(s=>`
 <div class="card">
@@ -157,7 +173,6 @@ ${rows.map(s=>`
 
 <div class="flex">
 <a href="/student/${s.id}"><button class="btn blue">Profil</button></a>
-<a href="/export/${s.id}"><button class="btn green">JSON</button></a>
 <form method="POST" action="/student/${s.id}/delete">
 <button class="btn red">Obriši</button>
 </form>
@@ -167,8 +182,20 @@ ${rows.map(s=>`
 `));
 });
 
+/* ADD STUDENT */
+
 app.post("/students/add",auth,async(req,res)=>{
-await pool.query("INSERT INTO students(name,grades,behavior,activity,absences) VALUES($1,'[]','[]','[]','[]')",[req.body.name]);
+await pool.query(
+"INSERT INTO students(name,grades,behavior,activity,absences) VALUES($1,'[]','[]','[]','[]')",
+[req.body.name]
+);
+res.redirect("/students");
+});
+
+/* DELETE STUDENT */
+
+app.post("/student/:id/delete",auth,async(req,res)=>{
+await pool.query("DELETE FROM students WHERE id=$1",[req.params.id]);
 res.redirect("/students");
 });
 
@@ -180,7 +207,28 @@ const r=rows[Math.floor(Math.random()*rows.length)];
 res.redirect("/student/"+r.id);
 });
 
-/* ================= STUDENT ================= */
+/* ================= USERS ================= */
+
+app.post("/users/add",auth,async(req,res)=>{
+const u = genUsername();
+const p = genPassword();
+
+await pool.query(
+"INSERT INTO users(username,password,role) VALUES($1,$2,'teacher')",
+[u,p]
+);
+
+res.send(`
+<div style="font-family:Arial;padding:20px">
+<h2>✅ Profil kreiran</h2>
+<p><b>Username:</b> ${u}</p>
+<p><b>Password:</b> ${p}</p>
+<a href="/students">Nazad</a>
+</div>
+`);
+});
+
+/* ================= STUDENT PAGE ================= */
 
 app.get("/student/:id",auth,async(req,res)=>{
 const {rows}=await pool.query("SELECT * FROM students WHERE id=$1",[req.params.id]);
@@ -221,13 +269,6 @@ ${s.grades.map((g,i)=>`
 `));
 });
 
-/* ================= EXPORT ================= */
-
-app.get("/export/:id",auth,async(req,res)=>{
-const {rows}=await pool.query("SELECT * FROM students WHERE id=$1",[req.params.id]);
-res.json(rows[0]);
-});
-
 /* ================= ACTIONS ================= */
 
 app.post("/student/:id/grade",auth,async(req,res)=>{
@@ -247,4 +288,8 @@ res.redirect("/student/"+req.params.id);
 
 /* ================= START ================= */
 
-app.listen(5000,()=>console.log("E-DNEVNIK PRO MAX 3 RUNNING"));
+app.get("/logout",(req,res)=>{
+req.session.destroy(()=>res.redirect("/login"));
+});
+
+app.listen(5000,()=>console.log("🚀 ULTIMATE E-DNEVNIK RUNNING"));
