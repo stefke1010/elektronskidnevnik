@@ -1,8 +1,8 @@
-
 /**
- * **************************************************************************
- * E-DNEVNIK ELITE PRO v10.1 - FULL SYSTEM
- * **************************************************************************
+ * ============================================================================
+ * E-DNEVNIK ELITE PRO MAX
+ * FULL WORKING SERVER.JS
+ * ============================================================================
  */
 
 const express = require("express");
@@ -10,42 +10,62 @@ const { Pool } = require("pg");
 
 const app = express();
 
+/* ============================================================================
+   MIDDLEWARE
+============================================================================ */
+
 app.use(express.static(__dirname));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+/* ============================================================================
+   DATABASE
+============================================================================ */
+
 const pool = new Pool({
   connectionString:
     "postgresql://postgres.xpgcmjqzbqplnmdkljpt:DDpGfUtsUvJEjdsn@aws-1-eu-central-1.pooler.supabase.com:6543/postgres",
-  ssl: { rejectUnauthorized: false },
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
+
+/* ============================================================================
+   HELPERS
+============================================================================ */
 
 const getDate = () =>
   new Date().toLocaleDateString("sr-RS");
 
-const avg = (grades) => {
-  if (!grades || !grades.length) return "0.00";
+const average = (grades = []) => {
+  if (!grades.length) return "0.00";
+
+  const valid = grades.filter(
+    (g) => !isNaN(Number(g.value))
+  );
+
+  if (!valid.length) return "0.00";
 
   return (
-    grades.reduce((a, b) => a + Number(b.value || 0), 0) /
-    grades.length
+    valid.reduce((a, b) => a + Number(b.value), 0) /
+    valid.length
   ).toFixed(2);
 };
 
-const finalGrade = (grades) => {
-  const a = Number(avg(grades));
+const suggestedFinal = (grades = []) => {
+  const avg = Number(average(grades));
 
-  if (a >= 4.5) return 5;
-  if (a >= 3.5) return 4;
-  if (a >= 2.5) return 3;
-  if (a >= 1.5) return 2;
+  if (avg >= 4.5) return 5;
+  if (avg >= 3.5) return 4;
+  if (avg >= 2.5) return 3;
+  if (avg >= 1.5) return 2;
 
   return 1;
 };
 
-/* -------------------------------------------------------------------------- */
-/*                                   LAYOUT                                   */
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   LAYOUT
+============================================================================ */
 
 const layout = (title, content) => `
 <!DOCTYPE html>
@@ -69,16 +89,17 @@ const layout = (title, content) => `
 
 body{
     margin:0;
+    font-family:'Plus Jakarta Sans',sans-serif;
     background:
     radial-gradient(circle at top left,#2563eb33,transparent 30%),
     radial-gradient(circle at bottom right,#7c3aed33,transparent 30%),
     #020617;
-
     color:white;
-    font-family:'Plus Jakarta Sans',sans-serif;
     display:flex;
     min-height:100vh;
 }
+
+/* SIDEBAR */
 
 aside{
     width:270px;
@@ -88,38 +109,39 @@ aside{
     padding:30px 20px;
     position:fixed;
     height:100vh;
-    display:flex;
-    flex-direction:column;
+    overflow:auto;
 }
 
 .logo{
     font-size:28px;
     font-weight:800;
     text-align:center;
-    margin-bottom:40px;
+    margin-bottom:35px;
     background:linear-gradient(to right,#3b82f6,#8b5cf6);
     -webkit-background-clip:text;
     -webkit-text-fill-color:transparent;
 }
 
 aside a{
+    display:flex;
+    align-items:center;
+    gap:12px;
     text-decoration:none;
     color:#cbd5e1;
     padding:15px;
     border-radius:14px;
-    margin-bottom:8px;
-    font-weight:700;
+    margin-bottom:10px;
     transition:0.2s;
-    display:flex;
-    align-items:center;
-    gap:12px;
+    font-weight:700;
 }
 
 aside a:hover{
     background:rgba(255,255,255,0.08);
-    transform:translateX(5px);
+    transform:translateX(4px);
     color:white;
 }
+
+/* MAIN */
 
 main{
     flex:1;
@@ -128,33 +150,37 @@ main{
 }
 
 h1{
+    margin-top:0;
     font-size:36px;
-    margin-bottom:30px;
 }
+
+/* CARDS */
 
 .card{
     background:rgba(15,23,42,0.7);
     border:1px solid rgba(255,255,255,0.06);
     border-radius:24px;
     padding:24px;
-    margin-bottom:18px;
+    margin-bottom:20px;
     backdrop-filter:blur(20px);
     transition:0.2s;
 }
 
 .card:hover{
     transform:translateY(-4px);
-    box-shadow:0 10px 30px rgba(0,0,0,0.35);
+    box-shadow:0 15px 35px rgba(0,0,0,0.35);
 }
+
+/* BUTTONS */
 
 .btn{
     border:none;
     padding:12px 18px;
-    border-radius:12px;
+    border-radius:14px;
     cursor:pointer;
     font-weight:800;
-    transition:0.2s;
     color:white;
+    transition:0.2s;
 }
 
 .btn:hover{
@@ -165,25 +191,27 @@ h1{
     background:#2563eb;
 }
 
-.red{
-    background:#dc2626;
-}
-
 .green{
     background:#059669;
 }
 
-.purple{
-    background:#7c3aed;
+.red{
+    background:#dc2626;
 }
 
 .orange{
     background:#ea580c;
 }
 
-.gray{
-    background:#334155;
+.purple{
+    background:#7c3aed;
 }
+
+.gray{
+    background:#475569;
+}
+
+/* INPUTS */
 
 input,textarea,select{
     width:100%;
@@ -196,25 +224,49 @@ input,textarea,select{
     font-family:inherit;
 }
 
-.quick{
+/* FLEX */
+
+.flex{
     display:flex;
     gap:10px;
     flex-wrap:wrap;
-    margin-bottom:15px;
 }
 
-.quick button{
-    flex:1;
-}
-
-.grade{
-    font-size:20px;
-    font-weight:800;
+.grid{
+    display:grid;
+    grid-template-columns:350px 1fr;
+    gap:20px;
 }
 
 .small{
-    color:#94a3b8;
     font-size:13px;
+    color:#94a3b8;
+}
+
+.big{
+    font-size:28px;
+    font-weight:800;
+}
+
+/* BADGE */
+
+.badge{
+    display:inline-block;
+    padding:6px 10px;
+    border-radius:10px;
+    font-size:12px;
+    font-weight:800;
+}
+
+/* SCROLLBAR */
+
+::-webkit-scrollbar{
+    width:10px;
+}
+
+::-webkit-scrollbar-thumb{
+    background:#334155;
+    border-radius:20px;
 }
 
 </style>
@@ -268,9 +320,9 @@ ${content}
 </html>
 `;
 
-/* -------------------------------------------------------------------------- */
-/*                                   LOGIN                                    */
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   LOGIN
+============================================================================ */
 
 app.get("/login", (req, res) => {
   res.send(`
@@ -296,16 +348,16 @@ app.get("/login", (req, res) => {
 
   .box{
       width:420px;
-      background:rgba(255,255,255,0.1);
-      backdrop-filter:blur(20px);
       padding:50px;
       border-radius:30px;
-      box-shadow:0 20px 40px rgba(0,0,0,0.3);
+      background:rgba(255,255,255,0.12);
+      backdrop-filter:blur(20px);
+      box-shadow:0 20px 40px rgba(0,0,0,0.35);
   }
 
   h1{
-      text-align:center;
       color:white;
+      text-align:center;
       margin-bottom:30px;
   }
 
@@ -340,12 +392,21 @@ app.get("/login", (req, res) => {
 
   <form method="POST">
 
-  <input name="user" placeholder="Корисничко име" required>
+  <input
+  name="user"
+  placeholder="Корисничко име"
+  required
+  >
 
-  <input type="password" name="pass" placeholder="Лозинка" required>
+  <input
+  type="password"
+  name="pass"
+  placeholder="Лозинка"
+  required
+  >
 
   <button>
-  УЂИ
+  УЂИ У ДНЕВНИК
   </button>
 
   </form>
@@ -368,53 +429,50 @@ app.post("/login", (req, res) => {
 
   res.send(`
   <script>
-  alert("Погрешна лозинка");
+  alert("Погрешни подаци!");
   location="/login";
   </script>
   `);
 });
 
-/* -------------------------------------------------------------------------- */
-/*                                 DASHBOARD                                  */
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   DASHBOARD
+============================================================================ */
 
 app.get("/dashboard", async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT * FROM lessons ORDER BY id DESC LIMIT 10"
+    "SELECT * FROM lessons ORDER BY id DESC"
   );
 
-  const html = rows
-    .map(
-      (l) => `
-    <div class="card">
+  const html =
+    rows
+      .map(
+        (l) => `
+      <div class="card">
 
-    <div>
+      <div class="small">
+      ${l.date}
+      </div>
 
-    <div class="small">
-    ${l.date}
-    </div>
+      <h2>
+      ${l.subject}
+      </h2>
 
-    <h2>
-    ${l.subject}
-    </h2>
+      <div>
+      ${l.topic}
+      </div>
 
-    <div class="small">
-    ${l.topic}
-    </div>
-
-    </div>
-
-    </div>
-  `
-    )
-    .in("");
+      </div>
+    `
+      )
+      .join("") || `<div class="card">Нема часова.</div>`;
 
   res.send(layout("Дашборд", html));
 });
 
-/* -------------------------------------------------------------------------- */
-/*                                  STUDENTS                                  */
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   STUDENTS
+============================================================================ */
 
 app.get("/students", async (req, res) => {
   const { rows } = await pool.query(
@@ -449,17 +507,17 @@ app.get("/students", async (req, res) => {
 
     <div>
 
-    <h2 style="margin:0">
+    <h2 style="margin:0;">
     ${s.name}
     </h2>
 
     <div class="small">
-    Просек: ${avg(s.grades)}
+    Просек: ${average(s.grades || [])}
     </div>
 
     </div>
 
-    <div style="display:flex; gap:10px;">
+    <div class="flex">
 
     <a href="/student/${s.id}">
     <button class="btn blue">
@@ -467,30 +525,41 @@ app.get("/students", async (req, res) => {
     </button>
     </a>
 
-   >
+    <form method="POST" action="/student/${s.id}/delete">
 
-<form method="POST" action="/student/${s.id}/delete">
+    <button class="btn red">
+    <i class="fas fa-trash"></i>
+    </button>
 
-<button class="btn red">
-<i class="fas fa-trash"></i>
-</button>
+    </form>
 
-</>
+    </div>
 
-</>
-
-</div>
-
-</div>
+    </div>
   `
     )
-    .in("")}
+    .join("")}
   `;
 
   res.send(layout("Ученици", html));
 });
 
-/* RANDOM */
+/* ADD STUDENT */
+
+app.post("/students/add", async (req, res) => {
+  await pool.query(
+    `
+    INSERT INTO students
+    (name, grades, behavior, activity, absences)
+    VALUES ($1, '[]', '[]', '[]', '[]')
+  `,
+    [req.body.name]
+  );
+
+  res.redirect("/students");
+});
+
+/* RANDOM STUDENT */
 
 app.get("/student/random", async (req, res) => {
   const { rows } = await pool.query(
@@ -507,17 +576,6 @@ app.get("/student/random", async (req, res) => {
   res.redirect("/student/" + random.id);
 });
 
-/* ADD STUDENT */
-
-app.post("/students/add", async (req, res) => {
-  await pool.query(
-    "INSERT INTO students(name) VALUES($1)",
-    [req.body.name]
-  );
-
-  res.redirect("/students");
-});
-
 /* DELETE STUDENT */
 
 app.post("/student/:id/delete", async (req, res) => {
@@ -529,9 +587,9 @@ app.post("/student/:id/delete", async (req, res) => {
   res.redirect("/students");
 });
 
-/* -------------------------------------------------------------------------- */
-/*                               STUDENT PAGE                                 */
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   STUDENT PROFILE
+============================================================================ */
 
 app.get("/student/:id", async (req, res) => {
   const { rows } = await pool.query(
@@ -545,10 +603,13 @@ app.get("/student/:id", async (req, res) => {
     return res.redirect("/students");
   }
 
-  const suggested = finalGrade(s.grades);
+  s.grades = s.grades || [];
+  s.behavior = s.behavior || [];
+  s.activity = s.activity || [];
+  s.absences = s.absences || [];
 
   const history = [
-    ...(s.grades || []).map((g) => ({
+    ...s.grades.map((g) => ({
       title: g.subject,
       value: g.value,
       note: g.note,
@@ -556,7 +617,7 @@ app.get("/student/:id", async (req, res) => {
       color: "#2563eb",
     })),
 
-    ...(s.behavior || []).map((b) => ({
+    ...s.behavior.map((b) => ({
       title: b.behavior_type,
       value: "📘",
       note: b.note,
@@ -564,7 +625,7 @@ app.get("/student/:id", async (req, res) => {
       color: "#7c3aed",
     })),
 
-    ...(s.activity || []).map((a) => ({
+    ...s.activity.map((a) => ({
       title: "Активност",
       value: a.value,
       note: a.note,
@@ -582,12 +643,14 @@ app.get("/student/:id", async (req, res) => {
   </h2>
 
   <div class="small">
-  Просек: ${avg(s.grades)}
+  Просек: ${average(s.grades)}
   </div>
 
-  <h1>
-  Предлог закључне: ${suggested}
-  </h1>
+  <div class="big">
+  Предложена закључна: ${suggestedFinal(
+    s.grades
+  )}
+  </div>
 
   <form method="POST" action="/student/${s.id}/final">
 
@@ -596,7 +659,9 @@ app.get("/student/:id", async (req, res) => {
   name="final_grade"
   min="1"
   max="5"
-  value="${s.final_grade || suggested}"
+  value="${
+    s.final_grade || suggestedFinal(s.grades)
+  }"
   >
 
   <button class="btn blue">
@@ -607,7 +672,7 @@ app.get("/student/:id", async (req, res) => {
 
   </div>
 
-  <div style="display:grid; grid-template-columns:350px 1fr; gap:20px;">
+  <div class="grid">
 
   <div>
 
@@ -631,17 +696,27 @@ app.get("/student/:id", async (req, res) => {
   required
   ></textarea>
 
-  <div class="quick">
+  <div class="flex">
 
-  <button class="btn green" name="value" value="5">5</button>
+  <button class="btn green" name="value" value="5">
+  5
+  </button>
 
-  <button class="btn green" name="value" value="4">4</button>
+  <button class="btn green" name="value" value="4">
+  4
+  </button>
 
-  <button class="btn orange" name="value" value="3">3</button>
+  <button class="btn orange" name="value" value="3">
+  3
+  </button>
 
-  <button class="btn red" name="value" value="2">2</button>
+  <button class="btn red" name="value" value="2">
+  2
+  </button>
 
-  <button class="btn red" name="value" value="1">1</button>
+  <button class="btn red" name="value" value="1">
+  1
+  </button>
 
   </div>
 
@@ -663,7 +738,7 @@ app.get("/student/:id", async (req, res) => {
   required
   ></textarea>
 
-  <div class="quick">
+  <div class="flex">
 
   <button
   class="btn orange"
@@ -709,17 +784,29 @@ app.get("/student/:id", async (req, res) => {
   required
   ></textarea>
 
-  <div class="quick">
+  <div class="flex">
 
-  <button class="btn green" name="value" value="😄">
+  <button
+  class="btn green"
+  name="value"
+  value="😄"
+  >
   😄
   </button>
 
-  <button class="btn gray" name="value" value="😐">
+  <button
+  class="btn gray"
+  name="value"
+  value="😐"
+  >
   😐
   </button>
 
-  <button class="btn red" name="value" value="😢">
+  <button
+  class="btn red"
+  name="value"
+  value="😢"
+  >
   😢
   </button>
 
@@ -731,7 +818,7 @@ app.get("/student/:id", async (req, res) => {
 
   </div>
 
-  <!-- HISTORIJA -->
+  <!-- HISTORY -->
 
   <div>
 
@@ -739,8 +826,10 @@ app.get("/student/:id", async (req, res) => {
     .map(
       (h) => `
     
-    <div class="card"
-    style="border-left:6px solid ${h.color};">
+    <div
+    class="card"
+    style="border-left:6px solid ${h.color}"
+    >
 
     <div>
 
@@ -758,14 +847,14 @@ app.get("/student/:id", async (req, res) => {
 
     </div>
 
-    <div class="grade">
+    <div class="big">
     ${h.value}
     </div>
 
     </div>
   `
     )
-    .in("")}
+    .join("")}
 
   </div>
 
@@ -775,9 +864,9 @@ app.get("/student/:id", async (req, res) => {
   res.send(layout(s.name, html));
 });
 
-/* -------------------------------------------------------------------------- */
-/*                                   GRADE                                    */
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   ADD GRADE
+============================================================================ */
 
 app.post("/student/:id/grade", async (req, res) => {
   const { rows } = await pool.query(
@@ -802,9 +891,9 @@ app.post("/student/:id/grade", async (req, res) => {
   res.redirect("/student/" + req.params.id);
 });
 
-/* -------------------------------------------------------------------------- */
-/*                                  BEHAVIOR                                  */
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   ADD BEHAVIOR
+============================================================================ */
 
 app.post("/student/:id/behavior", async (req, res) => {
   if (!req.body.note) {
@@ -826,7 +915,6 @@ app.post("/student/:id/behavior", async (req, res) => {
   behavior.push({
     behavior_type: req.body.type,
     note: req.body.note,
-    value: req.body.type,
     date: getDate(),
   });
 
@@ -838,9 +926,9 @@ app.post("/student/:id/behavior", async (req, res) => {
   res.redirect("/student/" + req.params.id);
 });
 
-/* -------------------------------------------------------------------------- */
-/*                                  ACTIVITY                                  */
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   ADD ACTIVITY
+============================================================================ */
 
 app.post("/student/:id/activity", async (req, res) => {
   const { rows } = await pool.query(
@@ -864,7 +952,9 @@ app.post("/student/:id/activity", async (req, res) => {
   res.redirect("/student/" + req.params.id);
 });
 
-/* FINAL */
+/* ============================================================================
+   FINAL GRADE
+============================================================================ */
 
 app.post("/student/:id/final", async (req, res) => {
   await pool.query(
@@ -875,9 +965,9 @@ app.post("/student/:id/final", async (req, res) => {
   res.redirect("/student/" + req.params.id);
 });
 
-/* -------------------------------------------------------------------------- */
-/*                                   LESSON                                   */
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   LESSONS
+============================================================================ */
 
 app.get("/lesson/new", (req, res) => {
   res.send(
@@ -904,7 +994,7 @@ app.get("/lesson/new", (req, res) => {
       <input
       type="number"
       name="period"
-      placeholder="Час"
+      placeholder="Број часа"
       required
       >
 
@@ -922,7 +1012,11 @@ app.get("/lesson/new", (req, res) => {
 
 app.post("/lesson/save", async (req, res) => {
   await pool.query(
-    "INSERT INTO lessons(subject,topic,period,date) VALUES($1,$2,$3,$4)",
+    `
+    INSERT INTO lessons
+    (subject, topic, period, date)
+    VALUES ($1, $2, $3, $4)
+  `,
     [
       req.body.subject,
       req.body.topic,
@@ -934,46 +1028,68 @@ app.post("/lesson/save", async (req, res) => {
   res.redirect("/dashboard");
 });
 
-/* HISTORY */
+/* ============================================================================
+   HISTORY
+============================================================================ */
 
 app.get("/history", async (req, res) => {
   const { rows } = await pool.query(
     "SELECT * FROM lessons ORDER BY id DESC"
   );
 
-  const html = rows
-    .map(
-      (l) => `
-    <div class="card">
+  const html =
+    rows
+      .map(
+        (l) => `
+      <div class="card">
 
-    <div class="small">
-    ${l.date}
-    </div>
+      <div class="small">
+      ${l.date}
+      </div>
 
-    <h2>
-    ${l.subject}
-    </h2>
+      <h2>
+      ${l.subject}
+      </h2>
 
-    <div>
-    ${l.topic}
-    </div>
+      <div>
+      ${l.topic}
+      </div>
 
-    </div>
-  `
-    )
-    .in("");
+      </div>
+    `
+      )
+      .join("") || `<div class="card">Празно.</div>`;
 
   res.send(layout("Историја", html));
 });
 
-/* -------------------------------------------------------------------------- */
+/* ============================================================================
+   ROOT
+============================================================================ */
 
 app.get("/", (req, res) => {
   res.redirect("/dashboard");
 });
 
+/* ============================================================================
+   ERROR
+============================================================================ */
+
+app.use((err, req, res, next) => {
+  console.error(err);
+
+  res.status(500).send(`
+  <h1>SERVER ERROR</h1>
+  <pre>${err}</pre>
+  `);
+});
+
+/* ============================================================================
+   SERVER
+============================================================================ */
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log("🚀 SERVER ONLINE " + PORT);
+  console.log("🚀 SERVER ONLINE NA PORTU " + PORT);
 });
