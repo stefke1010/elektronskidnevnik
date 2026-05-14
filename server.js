@@ -35,7 +35,7 @@ app.use(
    ========================================================= */
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: postgresql://postgres:vyjPY4wcoRMQg47l@db.xpgcmjqzbqplnmdkljpt.supabase.co:5432/postgres,
   ssl: {
     rejectUnauthorized: false
   }
