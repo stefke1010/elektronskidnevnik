@@ -1,28 +1,27 @@
 const express = require("express");
-const { Pool } = require("pg");
 const session = require("express-session");
-const bcrypt = require("bcrypt");
+const { Pool } = require("pg");
 
 const app = express();
 
-/* =========================
+/* ===================================================
    CONFIG
-========================= */
+=================================================== */
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.use(
   session({
-    secret: "ednevnik_secret",
+    secret: "EDNEVNIK_SECRET",
     resave: false,
     saveUninitialized: false
   })
 );
 
-/* =========================
+/* ===================================================
    DATABASE
-========================= */
+=================================================== */
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -31,9 +30,21 @@ const pool = new Pool({
   }
 });
 
-/* =========================
+/* ===================================================
+   ERROR HANDLERS
+=================================================== */
+
+process.on("uncaughtException", (err) => {
+  console.log(err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.log(err);
+});
+
+/* ===================================================
    HELPERS
-========================= */
+=================================================== */
 
 function safe(v) {
   try {
@@ -48,7 +59,7 @@ function avg(grades = []) {
     (g) => g.value && !isNaN(g.value)
   );
 
-  if (!arr.length) return 0;
+  if (!arr.length) return "0.00";
 
   return (
     arr.reduce(
@@ -58,9 +69,16 @@ function avg(grades = []) {
   ).toFixed(2);
 }
 
-/* =========================
-   AUTH
-========================= */
+function finalGrade(grades = []) {
+  const a = Number(avg(grades));
+
+  if (a >= 4.5) return 5;
+  if (a >= 3.5) return 4;
+  if (a >= 2.5) return 3;
+  if (a >= 1.5) return 2;
+
+  return 1;
+}
 
 function auth(req, res, next) {
   if (!req.session.user) {
@@ -70,15 +88,53 @@ function auth(req, res, next) {
   next();
 }
 
-/* =========================
+/* ===================================================
+   INIT DATABASE
+=================================================== */
+
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users(
+      id SERIAL PRIMARY KEY,
+      username TEXT UNIQUE,
+      password TEXT
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS students(
+      id SERIAL PRIMARY KEY,
+      name TEXT,
+      classroom TEXT,
+      grades TEXT
+    )
+  `);
+
+  const admin = await pool.query(
+    "SELECT * FROM users WHERE username='admin'"
+  );
+
+  if (!admin.rows.length) {
+    await pool.query(
+      `
+      INSERT INTO users(username,password)
+      VALUES('admin','admin123')
+    `
+    );
+
+    console.log("✅ ADMIN CREATED");
+  }
+}
+
+/* ===================================================
    UI
-========================= */
+=================================================== */
 
 function layout(title, content) {
   return `
   <!DOCTYPE html>
 
-  <html>
+  <html lang="sr">
 
   <head>
 
@@ -89,49 +145,180 @@ function layout(title, content) {
 
   <title>${title}</title>
 
+  <link rel="preconnect"
+  href="https://fonts.googleapis.com">
+
+  <link href="
+  https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap
+  " rel="stylesheet">
+
   <style>
 
   *{
   margin:0;
   padding:0;
   box-sizing:border-box;
-  font-family:Arial;
+  font-family:Inter;
   }
 
   body{
-  background:#0f172a;
+  background:
+  linear-gradient(
+  135deg,
+  #0f172a,
+  #111827,
+  #1e293b
+  );
+
   color:white;
-  padding:20px;
+  min-height:100vh;
+  padding:30px;
+  }
+
+  .top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:30px;
+  }
+
+  .logo{
+  font-size:35px;
+  font-weight:900;
+  background:linear-gradient(
+  90deg,
+  #60a5fa,
+  #a78bfa
+  );
+
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  }
+
+  .nav{
+  display:flex;
+  gap:15px;
+  flex-wrap:wrap;
+  }
+
+  .nav a{
+  text-decoration:none;
+  color:white;
+  background:#1e293b;
+  padding:12px 18px;
+  border-radius:15px;
+  transition:0.3s;
+  }
+
+  .nav a:hover{
+  transform:translateY(-3px);
+  background:#2563eb;
   }
 
   .card{
-  background:#111827;
-  padding:20px;
-  border-radius:20px;
-  margin-bottom:20px;
+  background:
+  rgba(255,255,255,0.05);
+
+  backdrop-filter:blur(15px);
+
+  border:1px solid rgba(255,255,255,0.1);
+
+  padding:25px;
+
+  border-radius:25px;
+
+  margin-bottom:25px;
+
+  box-shadow:
+  0 10px 40px rgba(0,0,0,0.3);
+  }
+
+  .grid{
+  display:grid;
+  grid-template-columns:
+  repeat(auto-fit,minmax(250px,1fr));
+
+  gap:20px;
+  }
+
+  .stat{
+  padding:30px;
+  border-radius:25px;
+
+  background:
+  linear-gradient(
+  135deg,
+  #2563eb,
+  #7c3aed
+  );
+  }
+
+  .stat h1{
+  font-size:50px;
   }
 
   input,textarea{
   width:100%;
-  padding:12px;
-  margin-top:10px;
+  padding:15px;
+  margin-top:12px;
   border:none;
-  border-radius:10px;
+  border-radius:15px;
+  background:#0f172a;
+  color:white;
+  font-size:15px;
   }
 
   button{
-  padding:12px 18px;
+  padding:14px 20px;
+  margin-top:15px;
   border:none;
-  border-radius:10px;
-  margin-top:10px;
-  cursor:pointer;
-  background:#2563eb;
+  border-radius:15px;
+  background:
+  linear-gradient(
+  90deg,
+  #2563eb,
+  #7c3aed
+  );
+
   color:white;
+  font-weight:700;
+  cursor:pointer;
+  transition:0.3s;
+  }
+
+  button:hover{
+  transform:scale(1.03);
+  }
+
+  .student{
+  padding:20px;
+  border-radius:20px;
+  background:#111827;
+  margin-top:15px;
+  }
+
+  .grade{
+  padding:15px;
+  border-radius:15px;
+  background:#0f172a;
+  margin-top:10px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  }
+
+  .avg{
+  font-size:18px;
+  color:#60a5fa;
   }
 
   a{
-  color:#60a5fa;
+  color:white;
   text-decoration:none;
+  }
+
+  .danger{
+  background:#dc2626;
   }
 
   </style>
@@ -140,9 +327,19 @@ function layout(title, content) {
 
   <body>
 
-  <h1>${title}</h1>
+  <div class="top">
 
-  <br>
+  <div class="logo">
+  📘 E-DNEVNIK PRO
+  </div>
+
+  <div class="nav">
+  <a href="/">🏠 Dashboard</a>
+  <a href="/students">👨‍🎓 Students</a>
+  <a href="/logout">🚪 Logout</a>
+  </div>
+
+  </div>
 
   ${content}
 
@@ -152,34 +349,96 @@ function layout(title, content) {
   `;
 }
 
-/* =========================
+/* ===================================================
    LOGIN
-========================= */
+=================================================== */
 
 app.get("/login", (req, res) => {
   res.send(`
+  <!DOCTYPE html>
+
   <html>
 
-  <body style="
-  background:#020617;
+  <head>
+
+  <style>
+
+  body{
+  margin:0;
+  background:
+  linear-gradient(
+  135deg,
+  #0f172a,
+  #1e293b
+  );
+
   display:flex;
   justify-content:center;
   align-items:center;
   height:100vh;
-  font-family:Arial;
-  ">
+  font-family:Inter;
+  }
 
-  <form method="POST"
-  style="
-  width:350px;
-  background:#111827;
-  padding:30px;
-  border-radius:20px;
-  ">
+  .box{
+  width:380px;
 
-  <h1 style="color:white">
-  📘 E-DNEVNIK
-  </h1>
+  background:
+  rgba(255,255,255,0.05);
+
+  backdrop-filter:blur(15px);
+
+  border-radius:30px;
+
+  padding:40px;
+
+  color:white;
+
+  box-shadow:
+  0 10px 40px rgba(0,0,0,0.4);
+  }
+
+  input{
+  width:100%;
+  padding:15px;
+  margin-top:15px;
+  border:none;
+  border-radius:15px;
+  background:#0f172a;
+  color:white;
+  }
+
+  button{
+  width:100%;
+  padding:15px;
+  margin-top:20px;
+  border:none;
+  border-radius:15px;
+
+  background:
+  linear-gradient(
+  90deg,
+  #2563eb,
+  #7c3aed
+  );
+
+  color:white;
+  font-weight:700;
+  cursor:pointer;
+  }
+
+  h1{
+  text-align:center;
+  }
+
+  </style>
+
+  </head>
+
+  <body>
+
+  <form class="box" method="POST">
+
+  <h1>📘 E-DNEVNIK</h1>
 
   <input
   name="username"
@@ -207,26 +466,19 @@ app.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
     const { rows } = await pool.query(
-      "SELECT * FROM users WHERE username=$1",
-      [username]
+      `
+      SELECT * FROM users
+      WHERE username=$1
+      AND password=$2
+    `,
+      [username, password]
     );
 
     if (!rows.length) {
-      return res.send("❌ User not found");
+      return res.send("❌ Wrong login");
     }
 
-    const user = rows[0];
-
-    const valid = await bcrypt.compare(
-      password,
-      user.password
-    );
-
-    if (!valid) {
-      return res.send("❌ Wrong password");
-    }
-
-    req.session.user = user;
+    req.session.user = rows[0];
 
     res.redirect("/");
   } catch (err) {
@@ -234,9 +486,9 @@ app.post("/login", async (req, res) => {
   }
 });
 
-/* =========================
+/* ===================================================
    DASHBOARD
-========================= */
+=================================================== */
 
 app.get("/", auth, async (req, res) => {
   try {
@@ -244,38 +496,61 @@ app.get("/", auth, async (req, res) => {
       "SELECT * FROM students ORDER BY id DESC"
     );
 
+    let totalGrades = 0;
+
+    rows.forEach((s) => {
+      totalGrades += safe(s.grades).length;
+    });
+
     res.send(
       layout(
         "Dashboard",
         `
-        <a href="/students">
-        👨‍🎓 Students
-        </a>
+        <div class="grid">
 
-        <br><br>
+        <div class="stat">
+        <h1>${rows.length}</h1>
+        <p>Students</p>
+        </div>
 
-        <a href="/logout">
-        🚪 Logout
-        </a>
+        <div class="stat">
+        <h1>${totalGrades}</h1>
+        <p>Grades</p>
+        </div>
 
-        <br><br>
+        </div>
+
+        <br>
 
         ${rows
           .map((s) => {
             const grades = safe(s.grades);
 
             return `
-            <div class="card">
+            <div class="student">
 
             <h2>${s.name}</h2>
 
-            <p>
+            <br>
+
+            <div class="avg">
             📊 Average:
             ${avg(grades)}
-            </p>
+            </div>
+
+            <br>
+
+            <div class="avg">
+            🏁 Final:
+            ${finalGrade(grades)}
+            </div>
+
+            <br>
 
             <a href="/student/${s.id}">
+            <button>
             Open profile
+            </button>
             </a>
 
             </div>
@@ -290,9 +565,9 @@ app.get("/", auth, async (req, res) => {
   }
 });
 
-/* =========================
+/* ===================================================
    STUDENTS
-========================= */
+=================================================== */
 
 app.get("/students", auth, async (req, res) => {
   try {
@@ -306,6 +581,8 @@ app.get("/students", auth, async (req, res) => {
         `
         <div class="card">
 
+        <h2>➕ Add Student</h2>
+
         <form method="POST"
         action="/students/add">
 
@@ -313,8 +590,12 @@ app.get("/students", auth, async (req, res) => {
         name="name"
         placeholder="Student name">
 
+        <input
+        name="classroom"
+        placeholder="Classroom">
+
         <button>
-        Add student
+        Add Student
         </button>
 
         </form>
@@ -322,19 +603,29 @@ app.get("/students", auth, async (req, res) => {
         </div>
 
         ${rows
-          .map((s) => {
-            return `
-            <div class="card">
+          .map(
+            (s) => `
+          <div class="student">
 
-            <h2>${s.name}</h2>
+          <h2>${s.name}</h2>
 
-            <a href="/student/${s.id}">
-            Open
-            </a>
+          <br>
 
-            </div>
-            `;
-          })
+          <p>
+          📚 ${s.classroom || "-"}
+          </p>
+
+          <br>
+
+          <a href="/student/${s.id}">
+          <button>
+          Open
+          </button>
+          </a>
+
+          </div>
+        `
+          )
           .join("")}
         `
       )
@@ -344,9 +635,9 @@ app.get("/students", auth, async (req, res) => {
   }
 });
 
-/* =========================
+/* ===================================================
    ADD STUDENT
-========================= */
+=================================================== */
 
 app.post(
   "/students/add",
@@ -358,15 +649,20 @@ app.post(
         INSERT INTO students
         (
           name,
+          classroom,
           grades
         )
         VALUES
         (
           $1,
+          $2,
           '[]'
         )
       `,
-        [req.body.name]
+        [
+          req.body.name,
+          req.body.classroom
+        ]
       );
 
       res.redirect("/students");
@@ -376,9 +672,9 @@ app.post(
   }
 );
 
-/* =========================
+/* ===================================================
    STUDENT PROFILE
-========================= */
+=================================================== */
 
 app.get(
   "/student/:id",
@@ -386,7 +682,10 @@ app.get(
   async (req, res) => {
     try {
       const { rows } = await pool.query(
-        "SELECT * FROM students WHERE id=$1",
+        `
+        SELECT * FROM students
+        WHERE id=$1
+      `,
         [req.params.id]
       );
 
@@ -404,18 +703,25 @@ app.get(
         layout(
           s.name,
           `
-          <div class="card">
+          <div class="grid">
 
-          <h2>${s.name}</h2>
+          <div class="stat">
+          <h1>${avg(grades)}</h1>
+          <p>Average</p>
+          </div>
 
-          <p>
-          📊 Average:
-          ${avg(grades)}
-          </p>
+          <div class="stat">
+          <h1>${finalGrade(grades)}</h1>
+          <p>Final Grade</p>
+          </div>
 
           </div>
 
+          <br>
+
           <div class="card">
+
+          <h2>➕ Add Grade</h2>
 
           <form method="POST"
           action="/student/${s.id}/grade">
@@ -429,31 +735,41 @@ app.get(
           placeholder="Grade">
 
           <button>
-          Add grade
+          Add Grade
           </button>
 
           </form>
 
           </div>
 
+          <div class="card">
+
+          <h2>📚 Grades</h2>
+
           ${grades
             .map(
               (g, i) => `
-            <div class="card">
+            <div class="grade">
+
+            <div>
 
             <h3>
             ${g.subject}
             </h3>
+
+            <br>
 
             <p>
             Grade:
             ${g.value}
             </p>
 
+            </div>
+
             <form method="POST"
             action="/student/${s.id}/delete-grade/${i}">
 
-            <button>
+            <button class="danger">
             Delete
             </button>
 
@@ -463,6 +779,8 @@ app.get(
           `
             )
             .join("")}
+
+          </div>
           `
         )
       );
@@ -472,9 +790,9 @@ app.get(
   }
 );
 
-/* =========================
+/* ===================================================
    ADD GRADE
-========================= */
+=================================================== */
 
 app.post(
   "/student/:id/grade",
@@ -482,7 +800,10 @@ app.post(
   async (req, res) => {
     try {
       const { rows } = await pool.query(
-        "SELECT grades FROM students WHERE id=$1",
+        `
+        SELECT grades FROM students
+        WHERE id=$1
+      `,
         [req.params.id]
       );
 
@@ -514,9 +835,9 @@ app.post(
   }
 );
 
-/* =========================
+/* ===================================================
    DELETE GRADE
-========================= */
+=================================================== */
 
 app.post(
   "/student/:id/delete-grade/:index",
@@ -524,7 +845,10 @@ app.post(
   async (req, res) => {
     try {
       const { rows } = await pool.query(
-        "SELECT grades FROM students WHERE id=$1",
+        `
+        SELECT grades FROM students
+        WHERE id=$1
+      `,
         [req.params.id]
       );
 
@@ -553,9 +877,9 @@ app.post(
   }
 );
 
-/* =========================
+/* ===================================================
    LOGOUT
-========================= */
+=================================================== */
 
 app.get("/logout", (req, res) => {
   req.session.destroy(() => {
@@ -563,14 +887,17 @@ app.get("/logout", (req, res) => {
   });
 });
 
-/* =========================
+/* ===================================================
    START
-========================= */
+=================================================== */
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(
-    "🚀 SERVER ONLINE ON PORT " + PORT
-  );
+initDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(
+      "🚀 E-DNEVNIK PRO ONLINE ON PORT " +
+        PORT
+    );
+  });
 });
